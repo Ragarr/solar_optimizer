@@ -56,6 +56,16 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
+def _parse_datetime(value) -> datetime | None:
+    """Parse an ISO datetime persisted in an attribute (None if absent or invalid)"""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+
+
 class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
     """The entity holding the algorithm calculation"""
 
@@ -120,6 +130,15 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
                     _LOGGER.info("forced_end_time=%s for %s has already expired, not restoring", end_time, self._device.name)
             except (ValueError, TypeError) as err:
                 _LOGGER.warning("Could not restore forced_end_time for %s: %s", self._device.name, err)
+
+        # Restore the availability dates (minimal on/off durations) persisted in the attributes:
+        # without it a restart makes every device immediately available again, so a device switched
+        # on just before the restart could be switched off right after it.
+        if last_state:
+            self._device.restore_next_dates_available(
+                _parse_datetime(last_state.attributes.get("next_date_available")),
+                _parse_datetime(last_state.attributes.get("next_date_available_power")),
+            )
 
         # Arme l'écoute de la première entité
         listener_cancel = async_track_state_change_event(

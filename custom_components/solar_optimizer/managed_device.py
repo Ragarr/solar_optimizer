@@ -385,6 +385,17 @@ class ManagedDevice:
                 self._next_date_available,
             )
 
+    def restore_next_dates_available(self, next_date: datetime | None, next_date_power: datetime | None) -> None:
+        """Restore the availability dates persisted before a restart. Dates in the past are
+        ignored (the device is available now, as without persistence)."""
+        now = self.now
+        if next_date is not None and next_date > now:
+            self._next_date_available = next_date
+            _LOGGER.info("%s - Restored next_date_available=%s", self.name, next_date)
+        if next_date_power is not None and next_date_power > now:
+            self._next_date_available_power = next_date_power
+            _LOGGER.info("%s - Restored next_date_available_power=%s", self.name, next_date_power)
+
     def set_current_power_with_device_state(self):
         """Set the current power according to the real device state"""
         if not self.is_active:
