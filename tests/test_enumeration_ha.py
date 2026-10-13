@@ -331,3 +331,18 @@ async def test_supervisor_state_restored_after_restart(hass: HomeAssistant):
     # stopping allowed 10 min after the real start, then the 5 min "off" confirmation
     assert (stops[0][0].timestamp() - started) >= 600 + 300
     assert hass.states.get("sensor.solar_optimizer_violations").state == "3"
+
+
+async def test_dry_run_blocks_every_path(hass: HomeAssistant):
+    """In dry run nothing reaches the devices: neither the "Active" switch nor the start_device /
+    stop_device services"""
+    world, t0 = await setup(hass)
+    with patch("homeassistant.core.ServiceRegistry.async_call", side_effect=world.service):
+        switch = search_entity(hass, "switch.solar_optimizer_aire_1", "switch")
+        await switch.async_turn_on()
+        coordinator = SolarOptimizerCoordinator.get_coordinator()
+        car = coordinator.get_device_by_name("Coche")
+        await car.start_forced(duration_hours=1)
+        await car.stop_forced()
+        await hass.async_block_till_done()
+    assert world.device_calls() == []
