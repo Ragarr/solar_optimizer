@@ -94,6 +94,14 @@ managed_device_schema = vol.Schema(
         vol.Optional(CONF_MIN_ON_TIME_PER_DAY_MIN): str,
         vol.Optional(CONF_MAX_ON_TIME_OFFPEAK_MIN): str,
         vol.Optional(CONF_OFFPEAK_TIME): str,
+        vol.Optional(CONF_MANUAL_DETECTION, default=False): cv.boolean,
+        vol.Optional(CONF_MANUAL_MAX_HOURS, default=DEFAULT_MANUAL_MAX_HOURS): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.1, max=48, step=0.1, unit_of_measurement="h", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_ECHO_WINDOW_SEC, default=DEFAULT_ECHO_WINDOW_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
     }
 )
 
@@ -149,5 +157,13 @@ power_managed_device_schema = vol.Schema(
         vol.Optional(CONF_MAX_ON_TIME_OFFPEAK_MIN): str,
         vol.Optional(CONF_OFFPEAK_TIME): str,
         vol.Optional(CONF_OFFPEAK_POWER): str,
+        vol.Optional(CONF_MANUAL_DETECTION, default=False): cv.boolean,
+        vol.Optional(CONF_MANUAL_MAX_HOURS, default=DEFAULT_MANUAL_MAX_HOURS): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.1, max=48, step=0.1, unit_of_measurement="h", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_ECHO_WINDOW_SEC, default=DEFAULT_ECHO_WINDOW_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
     }
 )

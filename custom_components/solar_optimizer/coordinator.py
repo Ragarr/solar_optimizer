@@ -159,6 +159,10 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
             if expired:
                 _LOGGER.info("Forced activation expired for %s — SO management re-enabled", device.name)
 
+        # End the manual mode of the devices whose time is over (no command is sent)
+        for device in self._devices:
+            device.check_manual_expiry()
+
         # Add a device state attributes
         for _, device in enumerate(self._devices):
             # Initialize current power depending or reality

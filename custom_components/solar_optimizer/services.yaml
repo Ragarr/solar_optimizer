@@ -49,3 +49,17 @@ stop_device:
             required: true
             selector:
                 text:
+
+end_manual:
+    name: End manual mode
+    description: >
+        Give a device changed by hand back to Solar Optimizer. No command is sent: the device stays
+        as it is and the algorithm decides in the next cycles.
+    fields:
+        device_id:
+            name: Device ID
+            description: >
+                The unique ID of the managed device (the part after switch.solar_optimizer_, e.g. lave_linge).
+            required: true
+            selector:
+                text:

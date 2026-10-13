@@ -63,7 +63,11 @@
                     "max_on_time_per_day_min": "Temps max par jour",
                     "min_on_time_per_day_min": "Temps min par jour",
                     "max_on_time_offpeak_min": "Temps max pendant les heures creuses",
-                    "offpeak_time": "Heure creuse"
+                    "offpeak_time": "Heure creuse",
+                    "manual_detection": "Détecter les changements manuels",
+                    "manual_max_hours": "Durée maximale du mode manuel (h)",
+                    "echo_window_sec": "Fenêtre d'écho (s)",
+                    "manual_release_template": "Template de fin du mode manuel"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -80,7 +84,11 @@
                     "max_on_time_per_day_min": "Le temps maximum par jour en état allumé en minutes. Si le temps minimum n'est pas atteint pendant la journée, il sera activé pendant l'heure creuse à concurrence du temps maximum",
                     "min_on_time_per_day_min": "Le temps minimum par jour en état allumé en minutes. Si il n'est pas atteint, l'équipement sera activé pendant l'heure creuse",
                     "max_on_time_offpeak_min": "Temps maximal de fonctionnement forcé pendant les heures creuses en minutes. Vaut le maximum quotidien par défaut et doit être compris entre le minimum et le maximum quotidiens.",
-                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM"
+                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM",
+                    "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
+                    "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
+                    "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
                 }
             },
             "powered_device": {
@@ -108,7 +116,11 @@
                     "min_on_time_per_day_min": "Temps min par jour",
                     "max_on_time_offpeak_min": "Temps max pendant les heures creuses",
                     "offpeak_power": "Puissance pendant les heures creuses",
-                    "offpeak_time": "Heure creuse"
+                    "offpeak_time": "Heure creuse",
+                    "manual_detection": "Détecter les changements manuels",
+                    "manual_max_hours": "Durée maximale du mode manuel (h)",
+                    "echo_window_sec": "Fenêtre d'écho (s)",
+                    "manual_release_template": "Template de fin du mode manuel"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -132,7 +144,11 @@
                     "min_on_time_per_day_min": "Le temps minimum par jour en état allumé en minutes. Si il n'est pas atteint, l'équipement sera activé pendant l'heure creuse",
                     "max_on_time_offpeak_min": "Temps maximal de fonctionnement forcé pendant les heures creuses en minutes. Vaut le maximum quotidien par défaut et doit être compris entre le minimum et le maximum quotidiens.",
                     "offpeak_power": "Puissance explicitement envoyée pendant le forçage en heures creuses. Vaut power_max par défaut et doit respecter la plage et le pas de puissance configurés.",
-                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM"
+                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM",
+                    "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
+                    "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
+                    "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
                 }
             }
         },
@@ -205,7 +221,11 @@
                     "max_on_time_per_day_min": "Temps max par jour",
                     "min_on_time_per_day_min": "Temps min par jour",
                     "max_on_time_offpeak_min": "Temps max pendant les heures creuses",
-                    "offpeak_time": "Heure creuse"
+                    "offpeak_time": "Heure creuse",
+                    "manual_detection": "Détecter les changements manuels",
+                    "manual_max_hours": "Durée maximale du mode manuel (h)",
+                    "echo_window_sec": "Fenêtre d'écho (s)",
+                    "manual_release_template": "Template de fin du mode manuel"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -222,7 +242,11 @@
                     "max_on_time_per_day_min": "Le temps maximum par jour en état allumé en minutes. Si le temps minimum n'est pas atteint pendant la journée, il sera activé pendant l'heure creuse à concurrence du temps maximum",
                     "min_on_time_per_day_min": "Le temps minimum par jour en état allumé en minutes. Si il n'est pas atteint, l'équipement sera activé pendant l'heure creuse",
                     "max_on_time_offpeak_min": "Temps maximal de fonctionnement forcé pendant les heures creuses en minutes. Vaut le maximum quotidien par défaut et doit être compris entre le minimum et le maximum quotidiens.",
-                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM"
+                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM",
+                    "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
+                    "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
+                    "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
                 }
             },
             "powered_device": {
@@ -250,7 +274,11 @@
                     "min_on_time_per_day_min": "Temps min par jour",
                     "max_on_time_offpeak_min": "Temps max pendant les heures creuses",
                     "offpeak_power": "Puissance pendant les heures creuses",
-                    "offpeak_time": "Heure creuse"
+                    "offpeak_time": "Heure creuse",
+                    "manual_detection": "Détecter les changements manuels",
+                    "manual_max_hours": "Durée maximale du mode manuel (h)",
+                    "echo_window_sec": "Fenêtre d'écho (s)",
+                    "manual_release_template": "Template de fin du mode manuel"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -274,7 +302,11 @@
                     "min_on_time_per_day_min": "Le temps minimum par jour en état allumé en minutes. Si il n'est pas atteint, l'équipement sera activé pendant l'heure creuse",
                     "max_on_time_offpeak_min": "Temps maximal de fonctionnement forcé pendant les heures creuses en minutes. Vaut le maximum quotidien par défaut et doit être compris entre le minimum et le maximum quotidiens.",
                     "offpeak_power": "Puissance explicitement envoyée pendant le forçage en heures creuses. Vaut power_max par défaut et doit respecter la plage et le pas de puissance configurés.",
-                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM"
+                    "offpeak_time": "L'heure de début des heures creuses au format HH:MM",
+                    "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
+                    "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
+                    "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
                 }
             }
         },
@@ -296,6 +328,13 @@
             "options": {
                 "action_call": "Appel d'action",
                 "event": "Evènement"
+            }
+        }
+    },
+    "entity": {
+        "button": {
+            "end_manual": {
+                "name": "Retour en automatique"
             }
         }
     }

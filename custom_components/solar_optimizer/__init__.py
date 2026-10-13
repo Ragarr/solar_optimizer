@@ -30,6 +30,7 @@ from .const import (
     SERVICE_RESET_ON_TIME,
     SERVICE_START_DEVICE,
     SERVICE_STOP_DEVICE,
+    SERVICE_END_MANUAL,
     validate_time_format,
     name_to_unique_id,
     CONF_NAME,
@@ -200,6 +201,20 @@ async def async_setup(
         hass.async_create_task(coordinator.async_refresh())
 
     hass.services.async_register(DOMAIN, SERVICE_STOP_DEVICE, _handle_stop_device)
+
+    async def _handle_end_manual(call):
+        """Handle solar_optimizer.end_manual: back to automatic, without sending any command"""
+        coordinator = SolarOptimizerCoordinator.get_coordinator()
+        if coordinator is None:
+            _LOGGER.error("end_manual: coordinator not found")
+            return
+        device = coordinator.get_device_by_unique_id(call.data.get("device_id"))
+        if device is None:
+            _LOGGER.warning("end_manual: device '%s' not found", call.data.get("device_id"))
+            return
+        device.end_manual("service")
+
+    hass.services.async_register(DOMAIN, SERVICE_END_MANUAL, _handle_end_manual)
 
     await async_setup_reload_service(hass, DOMAIN, PLATFORMS)
 
