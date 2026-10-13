@@ -61,7 +61,11 @@
                     "max_on_time_per_day_min": "Max on time per day",
                     "min_on_time_per_day_min": "Min on time per day",
                     "max_on_time_offpeak_min": "Max on time during off-peak hours",
-                    "offpeak_time": "Offpeak time"
+                    "offpeak_time": "Offpeak time",
+                    "manual_detection": "Detect manual changes",
+                    "manual_max_hours": "Maximal manual duration (h)",
+                    "echo_window_sec": "Echo window (s)",
+                    "manual_release_template": "Manual release template"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -78,7 +82,11 @@
                     "max_on_time_per_day_min": "The maximum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time until max time is reached",
                     "min_on_time_per_day_min": "The minimum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time",
                     "max_on_time_offpeak_min": "Maximum forced running time during off-peak hours in minutes. Defaults to the daily maximum and must be between the daily minimum and maximum.",
-                    "offpeak_time": "The offpeak time with format HH:MM"
+                    "offpeak_time": "The offpeak time with format HH:MM",
+                    "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+                    "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+                    "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+                    "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
                 }
             },
             "powered_device": {
@@ -106,7 +114,11 @@
                     "min_on_time_per_day_min": "Min on time per day",
                     "max_on_time_offpeak_min": "Max on time during off-peak hours",
                     "offpeak_power": "Power during off-peak hours",
-                    "offpeak_time": "Offpeak time"
+                    "offpeak_time": "Offpeak time",
+                    "manual_detection": "Detect manual changes",
+                    "manual_max_hours": "Maximal manual duration (h)",
+                    "echo_window_sec": "Echo window (s)",
+                    "manual_release_template": "Manual release template"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -130,7 +142,11 @@
                     "min_on_time_per_day_min": "The minimum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time",
                     "max_on_time_offpeak_min": "Maximum forced running time during off-peak hours in minutes. Defaults to the daily maximum and must be between the daily minimum and maximum.",
                     "offpeak_power": "Power explicitly sent during off-peak forcing. Defaults to power_max and must match the configured power range and step.",
-                    "offpeak_time": "The offpeak time with format HH:MM"
+                    "offpeak_time": "The offpeak time with format HH:MM",
+                    "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+                    "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+                    "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+                    "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
                 }
             }
         },
@@ -201,7 +217,11 @@
                     "max_on_time_per_day_min": "Max on time per day",
                     "min_on_time_per_day_min": "Min on time per day",
                     "max_on_time_offpeak_min": "Max on time during off-peak hours",
-                    "offpeak_time": "Offpeak time"
+                    "offpeak_time": "Offpeak time",
+                    "manual_detection": "Detect manual changes",
+                    "manual_max_hours": "Maximal manual duration (h)",
+                    "echo_window_sec": "Echo window (s)",
+                    "manual_release_template": "Manual release template"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -218,7 +238,11 @@
                     "max_on_time_per_day_min": "The maximum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time until max time is reached",
                     "min_on_time_per_day_min": "The minimum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time",
                     "max_on_time_offpeak_min": "Maximum forced running time during off-peak hours in minutes. Defaults to the daily maximum and must be between the daily minimum and maximum.",
-                    "offpeak_time": "The offpeak time with format HH:MM"
+                    "offpeak_time": "The offpeak time with format HH:MM",
+                    "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+                    "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+                    "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+                    "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
                 }
             },
             "powered_device": {
@@ -246,7 +270,11 @@
                     "min_on_time_per_day_min": "Min on time per day",
                     "max_on_time_offpeak_min": "Max on time during off-peak hours",
                     "offpeak_power": "Power during off-peak hours",
-                    "offpeak_time": "Offpeak time"
+                    "offpeak_time": "Offpeak time",
+                    "manual_detection": "Detect manual changes",
+                    "manual_max_hours": "Maximal manual duration (h)",
+                    "echo_window_sec": "Echo window (s)",
+                    "manual_release_template": "Manual release template"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -270,7 +298,11 @@
                     "min_on_time_per_day_min": "The minimum time per day in state on in minutes. Can be a number or a template. If minium time is not reached during daylight, it will be activated during offpeak time",
                     "max_on_time_offpeak_min": "Maximum forced running time during off-peak hours in minutes. Defaults to the daily maximum and must be between the daily minimum and maximum.",
                     "offpeak_power": "Power explicitly sent during off-peak forcing. Defaults to power_max and must match the configured power range and step.",
-                    "offpeak_time": "The offpeak time with format HH:MM"
+                    "offpeak_time": "The offpeak time with format HH:MM",
+                    "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+                    "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+                    "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+                    "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
                 }
             }
         },
@@ -292,6 +324,13 @@
             "options": {
                 "action_call": "Action call",
                 "event": "Event"
+            }
+        }
+    },
+    "entity": {
+        "button": {
+            "end_manual": {
+                "name": "Back to automatic"
             }
         }
     }

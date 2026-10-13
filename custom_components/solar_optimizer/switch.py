@@ -121,10 +121,22 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             except (ValueError, TypeError) as err:
                 _LOGGER.warning("Could not restore forced_end_time for %s: %s", self._device.name, err)
 
-        # Arme l'écoute de la première entité
+        if last_state and last_state.attributes.get("manual_end_time"):
+            try:
+                end_time = datetime.fromisoformat(last_state.attributes["manual_end_time"])
+                if end_time > datetime.now(get_tz(self._hass)):
+                    self._device.set_manual_end_time(end_time)
+                    _LOGGER.info("Restored manual_end_time=%s for %s", end_time, self._device.name)
+            except (ValueError, TypeError) as err:
+                _LOGGER.warning("Could not restore manual_end_time for %s: %s", self._device.name, err)
+
+        # Arme l'écoute de l'entité et de l'entité de puissance (détection des changements manuels)
+        watched = [self._entity_id]
+        if self._device.power_entity_id and self._device.power_entity_id != self._entity_id:
+            watched.append(self._device.power_entity_id)
         listener_cancel = async_track_state_change_event(
             self.hass,
-            [self._entity_id],
+            watched,
             self._on_state_change,
         )
         # desarme le timer lors de la destruction de l'entité
@@ -181,7 +193,19 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             return
 
         new_state: State = event.data.get("new_state")
-        # old_state: State = event.data.get("old_state")
+        old_state: State = event.data.get("old_state")
+
+        if device.is_enabled:
+            kind = device.classify_underlying_change(event.data.get("entity_id"), new_state, old_state)
+            if kind == "manual":
+                device.set_manual(self.coordinator.raz_time, event.data.get("entity_id"))
+                self.update_custom_attributes(device)
+                self.async_write_ha_state()
+            elif kind is not None:
+                _LOGGER.debug("%s - change on %s classified as %s", device.name, event.data.get("entity_id"), kind)
+
+        if event.data.get("entity_id") != self._entity_id:
+            return
 
         if new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
             _LOGGER.debug("Pas d'état disponible. Evenement ignoré")
@@ -222,6 +246,8 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             "battery_soc": device.battery_soc,
             "device_name": device.name,
             "forced_end_time": device.forced_end_time.astimezone(current_tz).isoformat() if device.forced_end_time else None,
+            "is_manual": device.is_manual,
+            "manual_end_time": device.manual_end_time.astimezone(current_tz).isoformat() if device.manual_end_time else None,
         }
 
     @callback

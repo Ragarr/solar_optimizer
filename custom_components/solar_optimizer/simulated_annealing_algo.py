@@ -117,6 +117,9 @@ class SimulatedAnnealingAlgorithm:
             if not device.is_enabled:
                 _LOGGER.debug("%s is disabled. Forget it", device.name)
                 continue
+            if getattr(device, "is_manual", False):
+                _LOGGER.debug("%s is in manual mode. Forget it", device.name)
+                continue
 
             device.set_battery_soc(battery_soc)
             usable = device.is_usable

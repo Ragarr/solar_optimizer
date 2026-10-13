@@ -61,7 +61,11 @@
           "max_on_time_per_day_min": "Tempo MAX al giorno",
           "min_on_time_per_day_min": "Tempo MIN al giorno",
           "max_on_time_offpeak_min": "Tempo massimo nelle ore non di punta",
-          "offpeak_time": "Orario fuori picco"
+          "offpeak_time": "Orario fuori picco",
+          "manual_detection": "Detect manual changes",
+          "manual_max_hours": "Maximal manual duration (h)",
+          "echo_window_sec": "Echo window (s)",
+          "manual_release_template": "Manual release template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -78,7 +82,11 @@
           "max_on_time_per_day_min": "Tempo massimo di attivazione giornaliera in minuti. Può essere un numero o un modello. Se il tempo massimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta fino al raggiungimento del tempo massimo",
           "min_on_time_per_day_min": "Il tempo minimo giornaliero in minuti. Può essere un numero o un modello. Se il tempo minimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta fino al raggiungimento del tempo massimo",
           "max_on_time_offpeak_min": "Tempo massimo di funzionamento forzato nelle ore non di punta, in minuti. Per impostazione predefinita corrisponde al massimo giornaliero e deve essere compreso tra il minimo e il massimo giornalieri.",
-          "offpeak_time": "Ora di inizio del periodo non di punta (off-peak) con il formato HH:MM"
+          "offpeak_time": "Ora di inizio del periodo non di punta (off-peak) con il formato HH:MM",
+          "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+          "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+          "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
         }
       },
       "powered_device": {
@@ -106,7 +114,11 @@
           "min_on_time_per_day_min": "Min in tempo al giorno",
           "max_on_time_offpeak_min": "Tempo massimo nelle ore non di punta",
           "offpeak_power": "Potenza nelle ore non di punta",
-          "offpeak_time": "Orario non di punta"
+          "offpeak_time": "Orario non di punta",
+          "manual_detection": "Detect manual changes",
+          "manual_max_hours": "Maximal manual duration (h)",
+          "echo_window_sec": "Echo window (s)",
+          "manual_release_template": "Manual release template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -130,7 +142,11 @@
           "min_on_time_per_day_min": "La durata minima giornaliera dell'accensione del dispositivo, in minuti. Può essere un numero o un modello. Se il tempo minimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta",
           "max_on_time_offpeak_min": "Tempo massimo di funzionamento forzato nelle ore non di punta, in minuti. Per impostazione predefinita corrisponde al massimo giornaliero e deve essere compreso tra il minimo e il massimo giornalieri.",
           "offpeak_power": "Potenza inviata esplicitamente durante il forzamento nelle ore non di punta. Per impostazione predefinita è power_max e deve rispettare l'intervallo e il passo di potenza configurati.",
-          "offpeak_time": "Il tempo Offpeak con il formato HH: MM"
+          "offpeak_time": "Il tempo Offpeak con il formato HH: MM",
+          "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+          "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+          "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
         }
       }
     },
@@ -201,7 +217,11 @@
           "max_on_time_per_day_min": "Max in tempo al giorno",
           "min_on_time_per_day_min": "Min in tempo al giorno",
           "max_on_time_offpeak_min": "Tempo massimo nelle ore non di punta",
-          "offpeak_time": "Tempo fuori campo"
+          "offpeak_time": "Tempo fuori campo",
+          "manual_detection": "Detect manual changes",
+          "manual_max_hours": "Maximal manual duration (h)",
+          "echo_window_sec": "Echo window (s)",
+          "manual_release_template": "Manual release template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -218,7 +238,11 @@
           "max_on_time_per_day_min": "La durata massima giornaliera dell'accensione del dispositivo, in minuti. Può essere un numero o un modello. Se il tempo massimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta fino al raggiungimento del tempo massimo",
           "min_on_time_per_day_min": "La durata minima giornaliera dell'accensione del dispositivo, in minuti. Può essere un numero o un modello. Se il tempo minimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta",
           "max_on_time_offpeak_min": "Tempo massimo di funzionamento forzato nelle ore non di punta, in minuti. Per impostazione predefinita corrisponde al massimo giornaliero e deve essere compreso tra il minimo e il massimo giornalieri.",
-          "offpeak_time": "Il tempo Offpeak con il formato HH: MM"
+          "offpeak_time": "Il tempo Offpeak con il formato HH: MM",
+          "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+          "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+          "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
         }
       },
       "powered_device": {
@@ -246,7 +270,11 @@
           "min_on_time_per_day_min": "Min in tempo al giorno",
           "max_on_time_offpeak_min": "Tempo massimo nelle ore non di punta",
           "offpeak_power": "Potenza nelle ore non di punta",
-          "offpeak_time": "Tempo fuori campo"
+          "offpeak_time": "Tempo fuori campo",
+          "manual_detection": "Detect manual changes",
+          "manual_max_hours": "Maximal manual duration (h)",
+          "echo_window_sec": "Echo window (s)",
+          "manual_release_template": "Manual release template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -270,7 +298,11 @@
           "min_on_time_per_day_min": "La durata minima giornaliera dell'accensione del dispositivo, in minuti. Può essere un numero o un modello. Se il tempo minimo non viene raggiunto durante le ore diurne, verrà attivato durante le ore non di punta",
           "max_on_time_offpeak_min": "Tempo massimo di funzionamento forzato nelle ore non di punta, in minuti. Per impostazione predefinita corrisponde al massimo giornaliero e deve essere compreso tra il minimo e il massimo giornalieri.",
           "offpeak_power": "Potenza inviata esplicitamente durante il forzamento nelle ore non di punta. Per impostazione predefinita è power_max e deve rispettare l'intervallo e il passo di potenza configurati.",
-          "offpeak_time": "Orario Offpeak nel formato HH: MM"
+          "offpeak_time": "Orario Offpeak nel formato HH: MM",
+          "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
+          "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
+          "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
         }
       }
     },
@@ -292,6 +324,13 @@
       "options": {
         "action_call": "Azione",
         "event": "Evento"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "end_manual": {
+        "name": "Torna in automatico"
       }
     }
   }

@@ -12,7 +12,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.helpers.template import Template, is_template_string
 
 SOLAR_OPTIMIZER_DOMAIN = DOMAIN = "solar_optimizer"
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.SELECT]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.SELECT, Platform.BUTTON]
 
 DEVICE_MANUFACTURER = "JMCOLLIN"
 DEVICE_MODEL = "Solar Optimizer"
@@ -27,6 +27,7 @@ CONF_ACTION_MODES = [CONF_ACTION_MODE_ACTION, CONF_ACTION_MODE_EVENT]
 
 EVENT_TYPE_SOLAR_OPTIMIZER_CHANGE_POWER = "solar_optimizer_change_power_event"
 EVENT_TYPE_SOLAR_OPTIMIZER_STATE_CHANGE = "solar_optimizer_state_change_event"
+EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE = "solar_optimizer_manual_change_event"
 
 EVENT_TYPE_SOLAR_OPTIMIZER_ENABLE_STATE_CHANGE = (
     "solar_optimizer_enable_state_change_event"
@@ -39,6 +40,7 @@ DEVICE_MANUFACTURER = "JM. COLLIN"
 SERVICE_RESET_ON_TIME = "reset_on_time"
 SERVICE_START_DEVICE = "start_device"
 SERVICE_STOP_DEVICE = "stop_device"
+SERVICE_END_MANUAL = "end_manual"
 
 TIME_REGEX = r"^(?:[01]\d|2[0-3]):[0-5]\d$"
 CONFIG_VERSION = 2
@@ -75,6 +77,12 @@ CONF_DURATION_POWER_MIN = "duration_power_min"
 CONF_CHANGE_POWER_SERVICE = "change_power_service"
 CONF_CONVERT_POWER_DIVIDE_FACTOR = "convert_power_divide_factor"
 CONF_RAZ_TIME = "raz_time"
+CONF_MANUAL_DETECTION = "manual_detection"
+CONF_MANUAL_MAX_HOURS = "manual_max_hours"
+CONF_ECHO_WINDOW_SEC = "echo_window_sec"
+CONF_MANUAL_RELEASE_TEMPLATE = "manual_release_template"
+DEFAULT_MANUAL_MAX_HOURS = 12
+DEFAULT_ECHO_WINDOW_SEC = 60
 CONF_BATTERY_SOC_ENTITY_ID = "battery_soc_entity_id"
 CONF_BATTERY_CHARGE_POWER_ENTITY_ID = "battery_charge_power_entity_id"
 CONF_BATTERY_SOC_THRESHOLD = "battery_soc_threshold"

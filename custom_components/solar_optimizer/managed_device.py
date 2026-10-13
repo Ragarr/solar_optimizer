@@ -1,7 +1,11 @@
 """ A ManagedDevice represent a device than can be managed by the optimisatiion algorithm"""
 import logging
 import math
+import re
+from collections import deque
 from datetime import datetime, timedelta, time
+
+from homeassistant.core import Context, State
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.template import Template
@@ -22,6 +26,13 @@ from .const import (
     CONF_ACTION_MODES,
     CONF_MAX_ON_TIME_OFFPEAK_MIN,
     CONF_OFFPEAK_POWER,
+    CONF_MANUAL_DETECTION,
+    CONF_MANUAL_MAX_HOURS,
+    CONF_ECHO_WINDOW_SEC,
+    CONF_MANUAL_RELEASE_TEMPLATE,
+    DEFAULT_MANUAL_MAX_HOURS,
+    DEFAULT_ECHO_WINDOW_SEC,
+    EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
     ConfigurationError,
     EVENT_TYPE_SOLAR_OPTIMIZER_CHANGE_POWER,
     EVENT_TYPE_SOLAR_OPTIMIZER_STATE_CHANGE,
@@ -48,8 +59,10 @@ async def do_service_action(
     current_power,
     requested_power,
     convert_power_divide_factor,
+    context: Context | None = None,
 ):
-    """Activate an entity via a service call"""
+    """Activate an entity via a service call. The call is made with `context` (when given) so
+    that the resulting state changes can be recognised as caused by Solar Optimizer."""
 
     if service_name is None or len(service_name) == 0:
         _LOGGER.info(
@@ -88,8 +101,9 @@ async def do_service_action(
     }
 
     try:
+        extra = {"context": context} if context is not None else {}
         await hass.services.async_call(
-            domain, action, service_data=service_data, target=target
+            domain, action, service_data=service_data, target=target, **extra
         )
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.exception(err)
@@ -223,6 +237,20 @@ class ManagedDevice:
 
         self._forced_end_time: datetime | None = None
 
+        # Detection of manual changes: every command is sent with its own Context, remembered for a
+        # while, so that the state changes it causes are recognised as echoes of our own commands.
+        self._manual_detection: bool = bool(device_config.get(CONF_MANUAL_DETECTION, False))
+        self._manual_max_hours = float(device_config.get(CONF_MANUAL_MAX_HOURS) or DEFAULT_MANUAL_MAX_HOURS)
+        echo = device_config.get(CONF_ECHO_WINDOW_SEC)
+        self._echo_window_sec = float(DEFAULT_ECHO_WINDOW_SEC if echo is None else echo)
+        release = device_config.get(CONF_MANUAL_RELEASE_TEMPLATE)
+        self._manual_release_template = Template(release, hass) if release else None
+        self._own_contexts: deque[tuple[str, datetime]] = deque(maxlen=50)
+        self._last_state_command: bool | None = None  # last on/off commanded
+        self._last_power_command: float | None = None  # last power commanded (W)
+        self._last_command_time: datetime | None = None
+        self._manual_end_time: datetime | None = None
+
         # Some checks
         # min_on_time_per_day_sec requires an offpeak_time
         if self.min_on_time_per_day_sec > 0 and self._offpeak_time is None:
@@ -277,6 +305,7 @@ class ManagedDevice:
                 entity_id = self._power_entity_id
                 self.reset_next_date_available_power()
 
+            context = self._new_command_context(action_type, requested_power)
             await do_service_action(
                 self._hass,
                 entity_id,
@@ -285,6 +314,7 @@ class ManagedDevice:
                 self._current_power,
                 requested_power,
                 self._convert_power_divide_factor,
+                context,
             )
         elif self._action_mode == CONF_ACTION_MODE_EVENT:
             do_event_action(
@@ -384,6 +414,159 @@ class ManagedDevice:
                 self._name,
                 self._next_date_available,
             )
+
+    # ------------------------------------------------------------------ manual changes
+
+    def _new_command_context(self, action_type: str, requested_power) -> Context | None:
+        """A new Context for a command, remembered to recognise its echoes (None when manual
+        changes are not detected: the command is sent as before)"""
+        if not self._manual_detection:
+            return None
+        context = Context()
+        now = self.now
+        self._own_contexts.append((context.id, now))
+        if action_type == ACTION_CHANGE_POWER:
+            self._last_power_command = requested_power
+        else:
+            self._last_state_command = action_type == ACTION_ACTIVATE
+        self._last_command_time = now
+        return context
+
+    def is_own_context(self, context: Context | None) -> bool:
+        """True if the context is one of our commands, or derived from one of them"""
+        if context is None:
+            return False
+        ids = {cid for cid, _ in self._own_contexts}
+        return context.id in ids or (context.parent_id is not None and context.parent_id in ids)
+
+    def _power_from_state(self, state: State) -> float | None:
+        """Requested power (W) shown by the power entity state (numbers like "13" or "13A")"""
+        value = state.state
+        if self._power_entity_id and self._power_entity_id.startswith(POWERED_ENTITY_DOMAINS_NEED_ATTR):
+            parameter = (self._change_power_service or "").split("/")
+            value = state.attributes.get(parameter[2]) if len(parameter) > 2 else None
+        match = re.match(r"\s*(-?\d+(?:[.,]\d+)?)", str(value)) if value is not None else None
+        if not match:
+            return None
+        return float(match.group(1).replace(",", ".")) * self._convert_power_divide_factor
+
+    def classify_underlying_change(self, entity_id: str, new_state: State | None, old_state: State | None) -> str | None:
+        """Classify a state change of the device entity or of its power entity:
+        - None: not relevant (no new value, unavailable, attribute-only change, detection disabled)
+        - "echo": caused by a Solar Optimizer command (own context, derived from it, or within the
+          echo window after one of our commands)
+        - "manual": made by a user (context with user_id) or by something else with a value
+          different from the last one we commanded (also when coming back from unavailable)
+        - "same": a change without user that matches what we commanded
+        """
+        if not self._manual_detection or new_state is None or new_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        from_unavailable = old_state is None or old_state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+        if not from_unavailable and old_state.state == new_state.state:
+            if entity_id != self._power_entity_id or self._power_from_state(old_state) == self._power_from_state(new_state):
+                return None
+        context = new_state.context
+        if self.is_own_context(context):
+            return "echo"
+        if self._last_command_time is not None and (self.now - self._last_command_time).total_seconds() <= self._echo_window_sec:
+            return "echo"
+        if context is not None and context.user_id is not None:
+            return "manual"
+        # No user: compare with what we commanded last for this entity (or with the previous value)
+        if entity_id == self._power_entity_id and entity_id != self._entity_id:
+            value = self._power_from_state(new_state)
+            if value is None:
+                return None
+            if self._last_power_command is not None:
+                expected = self._last_power_command
+            elif from_unavailable:
+                return "same"  # nothing commanded yet: the value after an outage is the starting point
+            else:
+                expected = self._power_from_state(old_state)
+            if expected is None:
+                return "manual"
+            return "same" if math.isclose(value, float(expected), abs_tol=1e-6) else "manual"
+        active = bool(self.is_active)
+        if self._last_state_command is not None:
+            return "same" if active == self._last_state_command else "manual"
+        if from_unavailable:
+            # Nothing commanded yet: the value after an outage is the starting point
+            return "same"
+        return "manual"
+
+    def next_raz_datetime(self, raz_time: time) -> datetime:
+        """Next occurrence of the daily reset time after now"""
+        now = self.now
+        candidate = now.replace(hour=raz_time.hour, minute=raz_time.minute, second=0, microsecond=0)
+        if candidate <= now:
+            candidate += timedelta(days=1)
+        return candidate
+
+    def set_manual(self, raz_time: time | None, entity_id: str | None = None) -> None:
+        """The device was changed by hand: Solar Optimizer leaves it alone until the end time (at
+        most manual_max_hours, and never beyond the next daily reset). The minimal durations count
+        from this change, as if Solar Optimizer had made it."""
+        end = self.now + timedelta(hours=self._manual_max_hours)
+        if raz_time is not None:
+            end = min(end, self.next_raz_datetime(raz_time))
+        self._manual_end_time = end
+        if entity_id is not None and entity_id == self._power_entity_id and entity_id != self._entity_id:
+            self.reset_next_date_available_power()
+        else:
+            self.reset_next_date_available(ACTION_ACTIVATE if self.is_active else ACTION_DEACTIVATE)
+        _LOGGER.info("%s - Manual change detected on %s: manual mode until %s", self.name, entity_id, end)
+        self._hass.bus.fire(
+            EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
+            {"device_unique_id": self._unique_id, "entity_id": entity_id, "manual_end_time": end.isoformat(), "is_manual": True},
+        )
+        self.publish_enable_state_change()
+
+    def end_manual(self, reason: str = "") -> None:
+        """Back to automatic. No command is sent: the algorithm decides in the next cycles."""
+        if self._manual_end_time is None:
+            return
+        _LOGGER.info("%s - Manual mode ended (%s): back to automatic, no command sent", self.name, reason)
+        self._manual_end_time = None
+        self._hass.bus.fire(
+            EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
+            {"device_unique_id": self._unique_id, "entity_id": None, "manual_end_time": None, "is_manual": False, "reason": reason},
+        )
+        self.publish_enable_state_change()
+
+    def check_manual_expiry(self) -> bool:
+        """End the manual mode when its time is over or the release template is true"""
+        if self._manual_end_time is None:
+            return False
+        if self.now >= self._manual_end_time:
+            self.end_manual("timeout")
+            return True
+        if self._manual_release_template is not None:
+            try:
+                if self._manual_release_template.async_render(context={}) is True:
+                    self.end_manual("release condition")
+                    return True
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.warning("%s - manual release template failed: %s", self.name, err)
+        return False
+
+    def set_manual_end_time(self, end_time: datetime | None) -> None:
+        """Restore the manual end time (used at HA restart)"""
+        self._manual_end_time = end_time
+
+    @property
+    def is_manual(self) -> bool:
+        """True while the device is in manual mode (changed by hand)"""
+        return self._manual_end_time is not None
+
+    @property
+    def manual_end_time(self) -> datetime | None:
+        """End of the manual mode, or None"""
+        return self._manual_end_time
+
+    @property
+    def manual_detection(self) -> bool:
+        """True if manual changes are detected for this device"""
+        return self._manual_detection
 
     def set_current_power_with_device_state(self):
         """Set the current power according to the real device state"""
@@ -721,6 +904,7 @@ class ManagedDevice:
                 "is_usable": self.is_usable,
                 "is_waiting": self.is_waiting,
                 "forced_end_time": self._forced_end_time.isoformat() if self._forced_end_time else None,
+                "manual_end_time": self._manual_end_time.isoformat() if self._manual_end_time else None,
             },
         )
 
