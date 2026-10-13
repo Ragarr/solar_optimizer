@@ -1,0 +1,330 @@
+"""Supervisor and control cycle (pure, simulated time): permissions, confirmations, invariants
+I1-I6, load shedding, verification, robustness and restore after a restart"""
+
+import pytest
+
+from custom_components.solar_optimizer.controller_core import Controller, DeviceConfig, DeviceInput, Inputs
+from custom_components.solar_optimizer.supervisor_core import Command, DeviceParams, DeviceState, GlobalParams, GlobalState, Supervisor
+
+PEAK, SELL = 0.26371, 0.06
+CAR_LEVELS = (0.0,) + tuple(round(0.232 * a, 3) for a in (6, 8, 10, 13, 16, 20, 24, 32))
+CAR = DeviceParams(levels=CAR_LEVELS, confirm_on=60, confirm_off=300, min_on=600, min_off=600, max_starts_per_hour=3, level_interval=30, shed_reaction=10, not_absorbing_kw=0.3)
+AC = DeviceParams(levels=(0.0, 0.8), confirm_on=120, confirm_off=300, min_on=900, min_off=600, max_starts_per_hour=2, shed_reaction=30, verify_after=60, echo_window=90)
+T0 = 1_800_000_000.0
+
+
+def controller(gparams=None):
+    return Controller(
+        [DeviceConfig("car", 1, CAR, 0.13, is_car=True), DeviceConfig("ac1", 2, AC, 0.09), DeviceConfig("ac2", 2, AC, 0.08)],
+        gparams or GlobalParams(warmup=0),
+    )
+
+
+class House:
+    """Minimal world: devices apply the commands instantly; net = base + devices - pv"""
+
+    def __init__(self, ctrl, base=0.4, pv=0.0):
+        self.ctrl, self.base, self.pv = ctrl, base, pv
+        self.on = {"car": False, "ac1": False, "ac2": False}
+        self.car_level = 13 * 0.232
+        self.log = []
+        self.inputs_extra = {}
+
+    def power(self, name):
+        if not self.on[name]:
+            return 0.0
+        return self.car_level if name == "car" else 0.8
+
+    def inputs(self, t, **kw):
+        # a little noise: a constant reading would look like a frozen sensor
+        net = self.base + 0.003 * ((t // 10) % 5) + sum(self.power(n) for n in self.on) - self.pv
+        devices = {
+            "car": DeviceInput(on=self.on["car"], level=self.car_level, measured=self.power("car")),
+            "ac1": DeviceInput(on=self.on["ac1"]),
+            "ac2": DeviceInput(on=self.on["ac2"]),
+        }
+        for name, extra in self.inputs_extra.items():
+            for k, v in extra.items():
+                setattr(devices[name], k, v)
+        args = dict(
+            now=t, net=net, production=self.pv + 0.01 * ((t // 10) % 7), price_import=PEAK, price_export=SELL, offpeak=False, limit=4.14, alphas={1: 1.0, 2: 0.0}, devices=devices
+        )
+        args.update(kw)
+        return Inputs(**args)
+
+    def apply(self, out, t):
+        for c in out.commands:
+            self.log.append((t, c))
+            if c.kind == "on":
+                self.on[c.device] = True
+            elif c.kind == "off":
+                self.on[c.device] = False
+            elif c.device == "car":
+                self.car_level = c.value
+
+    def run(self, t0, t1, step=10, cycle=30, dry_run=False, **kw):
+        """Runs the loop; returns the output of the last cycle (not of the fast path)"""
+        last = None
+        for t in range(int(t0), int(t1), step):
+            inp = self.inputs(float(t), **kw)
+            out = self.ctrl.step(inp, dry_run) if t % cycle == 0 else self.ctrl.fast(inp, dry_run)
+            if t % cycle == 0:
+                last = out
+            if not dry_run:
+                self.apply(out, t)
+        return last
+
+    def commands(self, device=None, kind=None):
+        return [(t, c) for t, c in self.log if (device is None or c.device == device) and (kind is None or c.kind == kind)]
+
+
+# ---------------------------------------------------------------------- permissions and levels
+
+
+def test_allowed_levels():
+    sup, g = Supervisor(GlobalParams()), GlobalState()
+    dev = DeviceState(on=True, level=1.392, t_on=T0)
+    assert 0.0 not in sup.allowed_levels(dev, CAR, g, T0 + 599)  # T_on not reached
+    assert 0.0 in sup.allowed_levels(dev, CAR, g, T0 + 600)
+    off = DeviceState(on=False, t_off=T0)
+    assert sup.allowed_levels(off, CAR, g, T0 + 599) == (0.0,)  # T_off
+    assert sup.allowed_levels(off, CAR, g, T0 + 600) == CAR_LEVELS
+    assert sup.allowed_levels(off, CAR, g, T0 + 600, available=False) == (0.0,)
+    g.last_start = T0 + 590
+    assert sup.allowed_levels(off, CAR, g, T0 + 600) == (0.0,)  # start separation
+    full = DeviceState(on=False, starts=[T0, T0 + 1000, T0 + 2000])
+    assert sup.allowed_levels(full, CAR, GlobalState(), T0 + 3000) == (0.0,)  # 3 starts/h
+    assert sup.allowed_levels(full, CAR, GlobalState(), T0 + 3601) == CAR_LEVELS
+    assert sup.start_possible_at(full, CAR, GlobalState(), T0 + 3000) == T0 + 3600
+
+
+def test_confirmations_and_change_of_mind():
+    """ON after the "on" confirmation; a change of mind of the plan restarts it"""
+    sup, g = Supervisor(GlobalParams()), GlobalState()
+    dev = DeviceState(level=1.392)
+    assert sup.decide("ac", dev, AC, g, 0.8, T0) is None
+    assert sup.decide("ac", dev, AC, g, 0.8, T0 + 110) is None
+    assert sup.decide("ac", dev, AC, g, 0.0, T0 + 115) is None  # change of mind
+    assert sup.decide("ac", dev, AC, g, 0.8, T0 + 120) is None
+    assert sup.decide("ac", dev, AC, g, 0.8, T0 + 230) is None
+    cmd = sup.decide("ac", dev, AC, g, 0.8, T0 + 240)
+    assert cmd is not None and cmd.kind == "on"
+
+
+def test_level_prepared_before_start_then_interval():
+    sup, g = Supervisor(GlobalParams()), GlobalState()
+    dev = DeviceState(level=13 * 0.232)
+    cmd = sup.decide("car", dev, CAR, g, 6 * 0.232, T0)
+    assert cmd.kind == "level" and cmd.value == pytest.approx(1.392)
+    sup.register(cmd, dev, g, T0)
+    sup.observe(dev, CAR, False, 1.392, T0 + 5)
+    assert sup.verify("car", dev, CAR, T0 + 5) == (None, None) and dev.pending is None
+    assert sup.decide("car", dev, CAR, g, 1.392, T0 + 20) is None  # command separation
+    cmd = sup.decide("car", dev, CAR, g, 1.392, T0 + 60)
+    assert cmd.kind == "on"
+
+
+# ---------------------------------------------------------------------- invariants
+
+
+@pytest.mark.parametrize(
+    "dev,cmd,now,code",
+    [
+        (DeviceState(on=False, t_off=T0), Command("car", "on", 1.392), T0 + 599, "I1"),
+        (DeviceState(on=True, t_on=T0), Command("car", "off"), T0 + 599, "I2"),
+        (DeviceState(on=False, starts=[T0, T0 + 10, T0 + 20]), Command("car", "on", 1.392), T0 + 3000, "I3"),
+        (DeviceState(on=True, level=2.0, last_level_change=T0), Command("car", "level", 2.32), T0 + 29, "I4"),
+    ],
+)
+def test_check_flags_violations(dev, cmd, now, code):
+    sup = Supervisor(GlobalParams())
+    assert [v.code for v in sup.check(cmd, dev, CAR, GlobalState(), now)] == [code]
+
+
+def test_check_exceptions_and_i6():
+    sup = Supervisor(GlobalParams())
+    # Shedding may stop before T_on and lower the level at once
+    assert sup.check(Command("car", "off", shed=True), DeviceState(on=True, t_on=T0), CAR, GlobalState(), T0 + 5) == []
+    assert sup.check(Command("car", "level", 1.392, shed=True), DeviceState(on=True, level=3.0, last_level_change=T0), CAR, GlobalState(), T0 + 5) == []
+    # ... but never start before T_off, and two starts are 60 s apart
+    g = GlobalState(last_start=T0)
+    assert [v.code for v in sup.check(Command("ac", "on", 0.8), DeviceState(), AC, g, T0 + 59)] == ["I6"]
+
+
+def test_controller_blocks_and_counts_a_violating_command():
+    """A command that would break an invariant is not sent; it is counted and notified"""
+    ctrl = controller()
+    out_inp = House(ctrl).inputs(T0)
+    ctrl.states["car"] = DeviceState(on=False, t_off=T0 - 10)
+    from custom_components.solar_optimizer.controller_core import Output
+
+    out = Output()
+    ctrl._emit(Command("car", "on", 1.392), out_inp, out, dry_run=False)
+    assert out.commands == [] and len(out.blocked) == 1
+    assert ctrl.g.violations == 1 and out.violations[0].code == "I1"
+    assert out.notifications[0][0] == "violation:car:I1"
+
+
+def test_full_days_never_violate():
+    """Square clouds with several periods: the invariants hold on every command sent"""
+    sup = Supervisor(GlobalParams())
+    for period in (30, 60, 120, 300, 600):
+        ctrl = controller()
+        house = House(ctrl)
+        for t in range(int(T0), int(T0 + 6 * 3600), 10):
+            house.pv = 5.0 if (t // (period // 2)) % 2 == 0 else 0.8
+            inp = house.inputs(float(t))
+            before = {n: DeviceState.from_dict(s.to_dict()) for n, s in ctrl.states.items()}
+            g_before = GlobalState.from_dict(ctrl.g.to_dict())
+            out = ctrl.step(inp) if t % 30 == 0 else ctrl.fast(inp)
+            for c in out.commands:
+                params = CAR if c.device == "car" else AC
+                assert sup.check(c, before[c.device], params, g_before, float(t)) == [], (period, t, c)
+            house.apply(out, t)
+        assert ctrl.g.violations == 0
+
+
+# ---------------------------------------------------------------------- shedding
+
+
+def test_load_shedding_sequence():
+    """Over the limit: car to 6 A, then car off, then the ACs from the lowest value; waits the
+    reaction time between steps; never touches manual devices; notifies when nothing is left"""
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=0.0)
+    house.on.update(car=True, ac1=True, ac2=True)
+    house.car_level = 16 * 0.232
+    for name in ("car", "ac1", "ac2"):
+        ctrl.states[name] = DeviceState(on=True, level=house.power(name), t_on=T0 - 60)
+    house.inputs_extra["ac1"] = {"manual": True}
+    house.base = 3.5  # 3.5 + 3.712 + 0.8 + 0.8 > 4.14, and still 3.5 + 0.8 (ac1, manual) after shedding
+    out = ctrl.fast(house.inputs(T0))
+    assert [(c.kind, c.value) for c in out.commands] == [("level", pytest.approx(1.392))]
+    house.apply(out, T0)
+    assert ctrl.fast(house.inputs(T0 + 5)).commands == []  # reaction time of the car: 10 s
+    out = ctrl.fast(house.inputs(T0 + 10))
+    assert [(c.device, c.kind) for c in out.commands] == [("car", "off")]
+    house.apply(out, T0 + 10)
+    out = ctrl.fast(house.inputs(T0 + 20))
+    assert [(c.device, c.kind) for c in out.commands] == [("ac2", "off")]  # ac1 is manual
+    house.apply(out, T0 + 20)
+    out = ctrl.fast(house.inputs(T0 + 50))
+    assert out.commands == [] and any(k == "shed" for k, _ in out.notifications)
+    assert ctrl.g.violations == 0
+    # T_off still applies after shedding: the car cannot restart for 10 min
+    assert ctrl.sup.allowed_levels(ctrl.states["car"], CAR, ctrl.g, T0 + 300) == (0.0,)
+
+
+def test_i5_detected_when_shedding_does_not_act():
+    sup = Supervisor(GlobalParams())
+    g = GlobalState(over_since=T0, shed_wait_until=T0)
+    dev = DeviceState(on=True, level=0.8)
+    assert sup.check_overload([("ac", dev, AC, 0.08)], g, 5.0, 4.14, T0 + 4) is None
+    v = sup.check_overload([("ac", dev, AC, 0.08)], g, 5.0, 4.14, T0 + 6)
+    assert v is not None and v.code == "I5"
+
+
+# ---------------------------------------------------------------------- verification and robustness
+
+
+def test_retries_then_faulty():
+    """A device that does not respond: 3 retries with growing waits, then faulty and notified"""
+    ctrl = controller()
+    house = House(ctrl, pv=3.5)  # plan: 13 A, the current setting (no level to prepare)
+    sent = []
+    for t in range(int(T0), int(T0 + 1200), 10):
+        out = ctrl.step(house.inputs(float(t))) if t % 30 == 0 else ctrl.fast(house.inputs(float(t)))
+        sent += [(t - T0, c.kind, c.retry) for c in out.commands if c.device == "car"]  # never applied
+        if any(k == "car:faulty" for k, _ in out.notifications):
+            break
+    ons = [s for s in sent if s[1] == "on"]
+    assert len(ons) == 4 and [s[2] for s in ons] == [False, True, True, True]
+    gaps = [b[0] - a[0] for a, b in zip(ons, ons[1:])]
+    assert gaps == sorted(gaps)  # growing waits
+    assert ctrl.states["car"].faulty
+
+
+def test_not_absorbing_car():
+    ctrl = controller()
+    house = House(ctrl, pv=4.0)
+    house.on["car"] = True
+    ctrl.states["car"] = DeviceState(on=True, level=house.car_level, t_on=T0 - 900)
+    house.inputs_extra["car"] = {"measured": 0.05}
+    notes = []
+    for t in range(int(T0), int(T0 + 700), 10):  # 150 s to detect it + 300 s of "off" confirmation
+        out = ctrl.step(house.inputs(float(t))) if t % 30 == 0 else ctrl.fast(house.inputs(float(t)))
+        notes += [k for k, _ in out.notifications]
+        house.apply(out, t)
+    assert "car:not_absorbing" in notes
+    assert ctrl.states["car"].not_absorbing_until is not None
+    assert any(c.device == "car" and c.kind == "off" for _, c in house.log)
+
+
+def test_sensor_hold_and_safe_state():
+    """Grid sensor unavailable: hold (no command); after 10 min, safe state: the car stops
+    (respecting T_on). A frozen sensor with sun is treated the same way"""
+    ctrl = controller()
+    house = House(ctrl, pv=4.0)
+    house.on["car"] = True
+    ctrl.states["car"] = DeviceState(on=True, level=house.car_level, t_on=T0 - 3600)
+    out = house.run(T0, T0 + 300, net=None)
+    assert out.mode == "hold" and house.log == []
+    out = house.run(T0 + 300, T0 + 700, net=None)
+    assert out.mode == "safe"
+    assert [(c.device, c.kind) for _, c in house.log] == [("car", "off")]
+
+    ctrl = controller()
+    house = House(ctrl, pv=4.0)
+    out = None
+    for t in range(int(T0), int(T0 + 400), 30):
+        out = ctrl.step(house.inputs(float(t), net=-2.0, production=4.0))
+    assert out.mode == "hold"
+
+
+def test_warmup_after_restart():
+    ctrl = controller(GlobalParams(warmup=120))
+    house = House(ctrl, pv=4.0)
+    house.run(T0, T0 + 110)
+    assert house.log == []
+    house.run(T0 + 110, T0 + 400)
+    assert house.log != []
+
+
+def test_dry_run_publishes_without_registering():
+    ctrl = controller()
+    house = House(ctrl, pv=4.0)
+    out = house.run(T0, T0 + 400, dry_run=True)
+    assert [(c.device, c.kind) for c in out.commands] == [("car", "on")]  # published with its level
+    assert all(s.pending is None and s.last_command is None for s in ctrl.states.values())
+    assert ctrl.g.last_start is None
+
+
+def test_restore_state():
+    ctrl = controller()
+    house = House(ctrl, pv=4.0)
+    house.run(T0, T0 + 400)
+    assert house.on["car"]
+    saved = ctrl.export_state()
+    t_on = ctrl.states["car"].t_on
+
+    new = controller()
+    new.restore_state(saved, T0 + 500, real_on={"car": True, "ac1": True, "ac2": False})
+    assert new.states["car"].t_on == t_on  # same real state: timers restored
+    assert new.states["ac1"].on and new.states["ac1"].t_on == T0 + 500  # changed while down
+    assert new.states["car"].pending is None and new.states["car"].obj_on is None
+
+
+def test_flicker_within_echo_window_is_ignored():
+    """A cloud device that briefly shows its previous state after applying a command does not
+    count as a stop/start"""
+    sup = Supervisor(GlobalParams())
+    ctrl = controller()
+    st = ctrl.states["ac1"]
+    cmd = Command("ac1", "on", 0.8)
+    sup.register(cmd, st, ctrl.g, T0)
+    house = House(ctrl)
+    house.on["ac1"] = True
+    ctrl.observe(house.inputs(T0 + 30), __import__("custom_components.solar_optimizer.controller_core", fromlist=["Output"]).Output())
+    house.on["ac1"] = False  # flicker
+    ctrl.observe(house.inputs(T0 + 40), __import__("custom_components.solar_optimizer.controller_core", fromlist=["Output"]).Output())
+    assert st.on and st.t_off is None and st.starts == [T0 + 30]
