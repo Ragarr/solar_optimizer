@@ -285,6 +285,12 @@ async def test_manual_change_notified_and_back_to_auto(hass: HomeAssistant):
         hass.states.async_set(CAR_AMPS, "20A", {"options": AMPS}, context=Context(user_id=OLD_CONTROLLER))
         await hass.async_block_till_done()
         assert not car.is_manual
+        # its echo, reported later without user (cloud device), is the old controller's too
+        world.set_now(world.now + timedelta(seconds=40))
+        hass.states.async_set(CAR_AMPS, "16A", {"options": AMPS}, context=Context())
+        await hass.async_block_till_done()
+        assert not car.is_manual
+        world.set_now(world.now + timedelta(seconds=40))
         hass.states.async_set(CAR_SWITCH, "on", context=Context(user_id=OWNER))
         await hass.async_block_till_done()
     assert car.is_manual
