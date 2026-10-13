@@ -344,6 +344,13 @@ class ManagedDevice:
         if requested_power is None:
             requested_power = self._requested_power
 
+        # Dry run (enumeration algorithm): nothing reaches the device, whatever the origin of the
+        # command (supervisor, "Active" switch, start_device / stop_device services)
+        runtime = getattr(self._coordinator, "runtime", None)
+        if runtime is not None and getattr(self._coordinator, "algorithm", None) == "enumeration" and runtime.dry_run:
+            _LOGGER.info("%s - dry run: %s (%s W) not sent", self._name, action_type, requested_power)
+            return
+
         if self._action_mode == CONF_ACTION_MODE_ACTION:
             method = None
             entity_id = self._entity_id
