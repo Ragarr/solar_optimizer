@@ -291,6 +291,7 @@ class ManagedDevice:
         self._last_state_command: bool | None = None  # last on/off commanded
         self._last_power_command: float | None = None  # last power commanded (W)
         self._last_command_time: datetime | None = None
+        self._last_foreign_time: datetime | None = None  # last change made by another controller
         self._manual_end_time: datetime | None = None
         ignore = device_config.get(CONF_MANUAL_IGNORE_TEMPLATE)
         self._manual_ignore_template = Template(ignore, hass) if ignore else None
@@ -540,8 +541,13 @@ class ManagedDevice:
             return "echo"
         if context is not None and context.user_id is not None:
             if context.user_id in self._coordinator_foreign_users():
+                # Another controller; its echoes (e.g. the state reported later by a cloud
+                # device, without user) are also its changes during the echo window
+                self._last_foreign_time = self.now
                 return "foreign"
             return "manual"
+        if self._last_foreign_time is not None and (self.now - self._last_foreign_time).total_seconds() <= self._echo_window_sec:
+            return "foreign"
         if self._manual_ignore_template is not None:
             try:
                 if self._manual_ignore_template.async_render(context={}) is True:
