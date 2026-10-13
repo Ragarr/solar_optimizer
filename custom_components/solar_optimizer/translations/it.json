@@ -28,7 +28,18 @@
           "battery_soc_entity_id": "Stato di carica della batteria",
           "battery_charge_power_entity_id": "Potenza di carica della batteria",
           "raz_time": "Orario di reset del contatore",
-          "smoothing_window_sec": "Finestra di livellamento (s)"
+          "smoothing_window_sec": "Finestra di livellamento (s)",
+          "algorithm": "Algorithm",
+          "contracted_power_entity_id": "Contracted power",
+          "contracted_power_margin_percent": "Margin under the contracted power (%)",
+          "offpeak_entity_id": "Off-peak period",
+          "notify_service": "Notification service",
+          "group_count": "Number of groups",
+          "group_import_caps": "Import cap per group (kW)",
+          "start_separation_sec": "Separation between two starts (s)",
+          "warmup_sec": "Warm-up after a restart (s)",
+          "discard_after_command_sec": "Measures discarded after a command (s)",
+          "foreign_user_ids": "Users of another controller"
         },
         "data_description": {
           "refresh_period_sec": "Anche in assenza di nuovi dati, viene eseguito un aggiornamento in base al valore impostato. Attenzione: vengono eseguiti calcoli complessi, quindi tenere sotto controllo il carico della CPU. Non aggiornare troppo spesso",
@@ -42,7 +53,18 @@
           "battery_soc_entity_id": "L'entity_id dello stato di carica della batteria in %. Se non è presente una batteria, lasciare vuoto",
           "battery_charge_power_entity_id": "L'entity_id della potenza di carica della batteria in watt. Deve essere negativo se la batteria si sta caricando e positivo se la batteria si sta scaricando. Lasciare vuoto se non viene utilizzata alcuna batteria.",
           "raz_time": "Orario di reset dei contatori del tempo di attività. Dovrebbe essere prima dell'alba, ma non troppo presto, in modo da lasciare tempo sufficiente per l'attivazione notturna",
-          "smoothing_window_sec": "Durata della media mobile applicata al consumo netto"
+          "smoothing_window_sec": "Durata della media mobile applicata al consumo netto",
+          "algorithm": "enumeration: exact economic optimisation with the supervisor (minimal times, confirmations, load shedding, invariants); annealing: the original algorithm",
+          "contracted_power_entity_id": "Entity with the contracted power (kW or W). The import is kept under it minus the margin",
+          "contracted_power_margin_percent": "The limit is the contracted power minus this percentage",
+          "offpeak_entity_id": "Binary sensor on during the off-peak period (values per period and off-peak backup)",
+          "notify_service": "e.g. notify.mobile_app_phone: manual changes (with a 'back to automatic' action), faulty devices, invariant violations",
+          "group_count": "Groups of devices served in order of priority, each one with its share of the surplus",
+          "group_import_caps": "Optional, e.g. 2:0.5 = group 2 never imports more than 0.5 kW",
+          "start_separation_sec": "Two starts of any devices are at least this far apart",
+          "warmup_sec": "After a restart nothing is commanded until this long of valid measures (load shedding excepted)",
+          "discard_after_command_sec": "The surplus samples right after a command are not averaged (the measures are still moving)",
+          "foreign_user_ids": "Comma-separated user ids: their changes are logged, not taken as manual changes (useful in dry run next to another controller)"
         }
       },
       "device": {
@@ -67,7 +89,17 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "group": "Group",
+          "value": "Value of 1 kWh (€/kWh)",
+          "measured_power_entity_id": "Measured power",
+          "confirm_on_min": "Start confirmation (min)",
+          "confirm_off_min": "Stop confirmation (min)",
+          "max_starts_per_hour": "Maximal starts per hour",
+          "shed_reaction_sec": "Load shedding reaction (s)",
+          "verify_after_sec": "Verification delay (s)",
+          "not_absorbing_w": "Not absorbing threshold (W)",
+          "manual_ignore_template": "Ignore changes template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -88,7 +120,17 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "group": "Priority group of the device for the enumeration algorithm (1 = served first)",
+          "value": "What 1 kWh delivered to this device is worth: between the selling price and the cheapest buying price. Initial value of the peak and off-peak value entities",
+          "measured_power_entity_id": "Optional sensor with the power really drawn by the device (W)",
+          "confirm_on_min": "The plan must ask for the start this long without interruption before the device is started",
+          "confirm_off_min": "The plan must ask for the stop this long without interruption before the device is stopped",
+          "max_starts_per_hour": "Starts of the device in any 60 min window",
+          "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
+          "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
+          "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
+          "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
         }
       },
       "powered_device": {
@@ -120,7 +162,17 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "group": "Group",
+          "value": "Value of 1 kWh (€/kWh)",
+          "measured_power_entity_id": "Measured power",
+          "confirm_on_min": "Start confirmation (min)",
+          "confirm_off_min": "Stop confirmation (min)",
+          "max_starts_per_hour": "Maximal starts per hour",
+          "shed_reaction_sec": "Load shedding reaction (s)",
+          "verify_after_sec": "Verification delay (s)",
+          "not_absorbing_w": "Not absorbing threshold (W)",
+          "manual_ignore_template": "Ignore changes template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -148,7 +200,17 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "group": "Priority group of the device for the enumeration algorithm (1 = served first)",
+          "value": "What 1 kWh delivered to this device is worth: between the selling price and the cheapest buying price. Initial value of the peak and off-peak value entities",
+          "measured_power_entity_id": "Optional sensor with the power really drawn by the device (W)",
+          "confirm_on_min": "The plan must ask for the start this long without interruption before the device is started",
+          "confirm_off_min": "The plan must ask for the stop this long without interruption before the device is stopped",
+          "max_starts_per_hour": "Starts of the device in any 60 min window",
+          "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
+          "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
+          "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
+          "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
         }
       }
     },
@@ -186,7 +248,18 @@
           "battery_soc_entity_id": "Stato di carica della batteria",
           "battery_charge_power_entity_id": "Potenza di ricarica della batteria",
           "raz_time": "Ripristina il contatore",
-          "smoothing_window_sec": "Finestra di livellamento (s)"
+          "smoothing_window_sec": "Finestra di livellamento (s)",
+          "algorithm": "Algorithm",
+          "contracted_power_entity_id": "Contracted power",
+          "contracted_power_margin_percent": "Margin under the contracted power (%)",
+          "offpeak_entity_id": "Off-peak period",
+          "notify_service": "Notification service",
+          "group_count": "Number of groups",
+          "group_import_caps": "Import cap per group (kW)",
+          "start_separation_sec": "Separation between two starts (s)",
+          "warmup_sec": "Warm-up after a restart (s)",
+          "discard_after_command_sec": "Measures discarded after a command (s)",
+          "foreign_user_ids": "Users of another controller"
         },
         "data_description": {
           "refresh_period_sec": "Periodo di aggiornamento in secondi, anche in assenza di nuovi dati. Attenzione: vengono effettuati calcoli complessi che influiscono sul carico della CPU, non aggiornare troppo spesso",
@@ -225,7 +298,17 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "group": "Group",
+          "value": "Value of 1 kWh (€/kWh)",
+          "measured_power_entity_id": "Measured power",
+          "confirm_on_min": "Start confirmation (min)",
+          "confirm_off_min": "Stop confirmation (min)",
+          "max_starts_per_hour": "Maximal starts per hour",
+          "shed_reaction_sec": "Load shedding reaction (s)",
+          "verify_after_sec": "Verification delay (s)",
+          "not_absorbing_w": "Not absorbing threshold (W)",
+          "manual_ignore_template": "Ignore changes template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -246,7 +329,17 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "group": "Priority group of the device for the enumeration algorithm (1 = served first)",
+          "value": "What 1 kWh delivered to this device is worth: between the selling price and the cheapest buying price. Initial value of the peak and off-peak value entities",
+          "measured_power_entity_id": "Optional sensor with the power really drawn by the device (W)",
+          "confirm_on_min": "The plan must ask for the start this long without interruption before the device is started",
+          "confirm_off_min": "The plan must ask for the stop this long without interruption before the device is stopped",
+          "max_starts_per_hour": "Starts of the device in any 60 min window",
+          "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
+          "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
+          "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
+          "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
         }
       },
       "powered_device": {
@@ -278,7 +371,17 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "group": "Group",
+          "value": "Value of 1 kWh (€/kWh)",
+          "measured_power_entity_id": "Measured power",
+          "confirm_on_min": "Start confirmation (min)",
+          "confirm_off_min": "Stop confirmation (min)",
+          "max_starts_per_hour": "Maximal starts per hour",
+          "shed_reaction_sec": "Load shedding reaction (s)",
+          "verify_after_sec": "Verification delay (s)",
+          "not_absorbing_w": "Not absorbing threshold (W)",
+          "manual_ignore_template": "Ignore changes template"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -306,7 +409,17 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "group": "Priority group of the device for the enumeration algorithm (1 = served first)",
+          "value": "What 1 kWh delivered to this device is worth: between the selling price and the cheapest buying price. Initial value of the peak and off-peak value entities",
+          "measured_power_entity_id": "Optional sensor with the power really drawn by the device (W)",
+          "confirm_on_min": "The plan must ask for the start this long without interruption before the device is started",
+          "confirm_off_min": "The plan must ask for the stop this long without interruption before the device is stopped",
+          "max_starts_per_hour": "Starts of the device in any 60 min window",
+          "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
+          "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
+          "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
+          "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
         }
       }
     },
@@ -329,12 +442,60 @@
         "action_call": "Azione",
         "event": "Evento"
       }
+    },
+    "algorithm": {
+      "options": {
+        "enumeration": "Enumeration + supervisor",
+        "annealing": "Simulated annealing (original)"
+      }
     }
   },
   "entity": {
     "button": {
       "end_manual": {
         "name": "Torna in automatico"
+      }
+    },
+    "switch": {
+      "dry_run": {
+        "name": "Dry run"
+      }
+    },
+    "sensor": {
+      "plan": {
+        "name": "Plan"
+      },
+      "surplus": {
+        "name": "Filtered surplus"
+      },
+      "planned_import": {
+        "name": "Planned import"
+      },
+      "planned_export": {
+        "name": "Planned export"
+      },
+      "violations": {
+        "name": "Invariant violations"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "auto": "Automatic",
+          "manual": "Manual",
+          "faulty": "Faulty",
+          "excluded": "Not included"
+        }
+      }
+    },
+    "number": {
+      "value_peak": {
+        "name": "Value peak"
+      },
+      "value_offpeak": {
+        "name": "Value off-peak"
+      },
+      "alpha": {
+        "name": "Share of group {group}"
       }
     }
   }

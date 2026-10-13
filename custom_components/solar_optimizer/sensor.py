@@ -13,6 +13,7 @@ from homeassistant.core import callback, HomeAssistant, Event, State
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers import entity_platform
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorEntity,
     SensorDeviceClass,
     SensorStateClass,
@@ -66,7 +67,16 @@ async def async_setup_entry(
         entity5 = SolarOptimizerSensorEntity(coordinator, hass, "power_consumption")
         entity6 = SolarOptimizerSensorEntity(coordinator, hass, "battery_soc")
 
-        async_add_entities([entity1, entity2, entity3, entity4, entity5, entity6], False)
+        entities = [entity1, entity2, entity3, entity4, entity5, entity6]
+        if entry.data.get(CONF_ALGORITHM) == ALGORITHM_ENUMERATION:
+            entities += [
+                PlanSensor(coordinator),
+                PlanValueSensor(coordinator, "surplus", "mdi:solar-power-variant"),
+                PlanValueSensor(coordinator, "planned_import", "mdi:transmission-tower-import"),
+                PlanValueSensor(coordinator, "planned_export", "mdi:transmission-tower-export"),
+                ViolationsSensor(coordinator),
+            ]
+        async_add_entities(entities, False)
 
         await coordinator.configure(entry)
         return
@@ -85,7 +95,10 @@ async def async_setup_entry(
         device,
     )
 
-    async_add_entities([entity1], False)
+    entities = [entity1]
+    if configured_algorithm(hass) == ALGORITHM_ENUMERATION or entry.data.get(CONF_MANUAL_DETECTION):
+        entities.append(DeviceStatusSensor(coordinator, device))
+    async_add_entities(entities, False)
 
     # Add services
     platform = entity_platform.async_get_current_platform()
@@ -424,3 +437,178 @@ class TodayOnTimeSensor(SensorEntity, RestoreEntity):
         """
         _LOGGER.info("%s - Calling service_reset_on_time", self)
         await self._on_midnight()
+
+
+def _central_device_info():
+    return DeviceInfo(
+        entry_type=DeviceEntryType.SERVICE,
+        identifiers={(DOMAIN, CONF_DEVICE_CENTRAL)},
+        name="Solar Optimizer",
+        manufacturer=DEVICE_MANUFACTURER,
+        model=INTEGRATION_MODEL,
+    )
+
+
+class PlanSensor(CoordinatorEntity, SensorEntity):
+    """The plan proposed by the optimiser (enumeration): state = devices on with their power;
+    attributes = per device level, surplus, import margin, mode, commands (also in dry run)"""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:clipboard-list-outline"
+    _unrecorded_attributes = frozenset({"devices", "commands", "plan_levels_w", "last_violations"})
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, context="plan")
+        self.entity_id = "sensor.solar_optimizer_plan"
+        self._attr_unique_id = "solar_optimizer_plan"
+        self._attr_translation_key = "plan"
+        self._attr_name = "Plan"
+
+    @property
+    def device_info(self):
+        return _central_device_info()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = self.coordinator.data or {}
+        if "plan" not in data:
+            return
+        self._attr_native_value = str(data["plan"])[:255]
+        self._attr_extra_state_attributes = {
+            k: data.get(k)
+            for k in (
+                "plan_levels_w",
+                "surplus",
+                "surplus_instant",
+                "import_margin",
+                "planned_import",
+                "planned_export",
+                "objective",
+                "mode",
+                "dry_run",
+                "commands",
+                "offpeak",
+                "price_import",
+                "alphas",
+                "devices",
+                "last_violations",
+            )
+        }
+        self.async_write_ha_state()
+
+
+class PlanValueSensor(CoordinatorEntity, SensorEntity):
+    """A power of the plan (W): filtered surplus, planned import, planned export"""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, idx: str, icon: str):
+        super().__init__(coordinator, context=idx)
+        self.idx = idx
+        self.entity_id = f"sensor.solar_optimizer_{idx}"
+        self._attr_unique_id = f"solar_optimizer_{idx}"
+        self._attr_translation_key = idx
+        self._attr_name = idx.replace("_", " ").capitalize()
+        self._attr_icon = icon
+
+    @property
+    def device_info(self):
+        return _central_device_info()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = self.coordinator.data or {}
+        if self.idx not in data:
+            return
+        self._attr_native_value = data[self.idx]
+        self.async_write_ha_state()
+
+
+class ViolationsSensor(CoordinatorEntity, RestoreSensor):
+    """Counter of invariant violations (should stay at 0). Also keeps the global state of the
+    supervisor across restarts."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:shield-alert-outline"
+    _unrecorded_attributes = frozenset({"supervisor"})
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator, context="violations")
+        self.entity_id = "sensor.solar_optimizer_violations"
+        self._attr_unique_id = "solar_optimizer_violations"
+        self._attr_translation_key = "violations"
+        self._attr_name = "Invariant violations"
+        self._attr_native_value = 0
+
+    @property
+    def device_info(self):
+        return _central_device_info()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            saved = last.attributes.get("supervisor")
+            try:
+                count = int(float(last.state))
+            except (TypeError, ValueError):
+                count = 0
+            saved = dict(saved) if isinstance(saved, dict) else {}
+            saved["violations"] = max(count, int(saved.get("violations") or 0))
+            self.coordinator.runtime.restore_global(saved)
+            self._attr_native_value = saved["violations"]
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = self.coordinator.data or {}
+        if "violations" not in data:
+            return
+        self._attr_native_value = data["violations"]
+        self._attr_extra_state_attributes = {
+            "last_violations": data.get("last_violations"),
+            "supervisor": self.coordinator.runtime.global_state(),
+        }
+        self.async_write_ha_state()
+
+
+class DeviceStatusSensor(CoordinatorEntity, SensorEntity):
+    """Mode of a device for Solar Optimizer: auto, manual, faulty, excluded; attributes: group,
+    value, current and planned level, when it can be started or stopped"""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options = ["auto", "manual", "faulty", "excluded"]
+    _attr_icon = "mdi:robot"
+
+    def __init__(self, coordinator, device):
+        idx = name_to_unique_id(device.name)
+        super().__init__(coordinator, context=f"status_{idx}")
+        self._device = device
+        self.entity_id = f"sensor.solar_optimizer_status_{idx}"
+        self._attr_unique_id = f"solar_optimizer_status_{idx}"
+        self._attr_translation_key = "status"
+        self._attr_name = "Status"
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, self._device.name)},
+            name="Solar Optimizer-" + self._device.name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = ((self.coordinator.data or {}).get("devices") or {}).get(self._device.name)
+        if data is None:
+            mode = "excluded" if not self._device.is_enabled else "manual" if self._device.is_manual else "auto"
+            data = {"mode": mode, "manual_end_time": self._device.manual_end_time.isoformat() if self._device.manual_end_time else None}
+        self._attr_native_value = data["mode"]
+        self._attr_extra_state_attributes = {k: v for k, v in data.items() if k != "mode"}
+        self.async_write_ha_state()

@@ -29,11 +29,17 @@ from .const import (
     SOLAR_OPTIMIZER_DOMAIN,
     DEFAULT_RAZ_TIME,
     DEFAULT_SMOOTHING_WINDOW_SEC,
+    CONF_ALGORITHM,
+    ALGORITHM_ANNEALING,
+    ALGORITHM_ENUMERATION,
+    DEFAULT_ENUMERATION_REFRESH_PERIOD_SEC,
+    get_tz,
     ConfigurationError,
 )
 from .managed_device import ManagedDevice
 from .simulated_annealing_algo import SimulatedAnnealingAlgorithm
 from .smoothing import TimeWindowAverage
+from .supervisor_runtime import SupervisorRuntime
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,6 +85,9 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
 
         self._central_config_done = False
         self._priority_weight_entity = None
+        self._algorithm = ALGORITHM_ANNEALING
+        self._now = None
+        self.runtime = SupervisorRuntime(hass, self)
 
         super().__init__(hass, _LOGGER, name="Solar Optimizer")
 
@@ -100,9 +109,10 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
 
     async def configure(self, config: ConfigEntry) -> None:
         """Configure the coordinator from configEntry of the integration"""
-        refresh_period_sec = (
-            config.data.get("refresh_period_sec") or DEFAULT_REFRESH_PERIOD_SEC
-        )
+        # Configurations made before the enumeration algorithm existed keep the annealing
+        self._algorithm = config.data.get(CONF_ALGORITHM) or ALGORITHM_ANNEALING
+        default_period = DEFAULT_ENUMERATION_REFRESH_PERIOD_SEC if self._algorithm == ALGORITHM_ENUMERATION else DEFAULT_REFRESH_PERIOD_SEC
+        refresh_period_sec = config.data.get("refresh_period_sec") or default_period
         self.update_interval = timedelta(seconds=refresh_period_sec)
         self._schedule_refresh()
 
@@ -139,6 +149,10 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
             config.data.get("raz_time") or DEFAULT_RAZ_TIME, "%H:%M"
         ).time()
         self._central_config_done = True
+        if self._algorithm == ALGORITHM_ENUMERATION:
+            self.runtime.configure(config.data)
+        else:
+            self.runtime.unload()
 
     async def on_ha_started(self, _) -> None:
         """Listen the homeassistant_started event to initialize the first calculation"""
@@ -162,6 +176,16 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
         # End the manual mode of the devices whose time is over (no command is sent)
         for device in self._devices:
             device.check_manual_expiry()
+
+        if self._algorithm == ALGORITHM_ENUMERATION:
+            if not self._devices or self._power_consumption_entity_id is None:
+                return None
+            data = await self.runtime.async_step(self.now)
+            for device in self._devices:
+                calculated_data[name_to_unique_id(device.name)] = device
+                device.set_requested_power(data["plan_levels_w"].get(device.name, 0))
+            calculated_data.update(data)
+            return calculated_data
 
         # Add a device state attributes
         for _, device in enumerate(self._devices):
@@ -357,7 +381,37 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
     @property
     def now(self) -> datetime:
         """Get now. The local datetime or the overloaded _set_now date (tests)"""
-        return self._now if getattr(self, "_now", None) is not None else datetime.now()
+        return self._now if getattr(self, "_now", None) is not None else datetime.now(get_tz(self.hass))
+
+    @property
+    def algorithm(self) -> str:
+        """annealing or enumeration"""
+        return self._algorithm
+
+    @property
+    def foreign_user_ids(self) -> set[str]:
+        """Users of another controller: their changes are not manual changes"""
+        return self.runtime.foreign_user_ids
+
+    @property
+    def power_consumption_entity_id(self) -> str | None:
+        return self._power_consumption_entity_id
+
+    @property
+    def power_production_entity_id(self) -> str | None:
+        return self._power_production_entity_id
+
+    @property
+    def sell_cost_entity_id(self) -> str | None:
+        return self._sell_cost_entity_id
+
+    @property
+    def buy_cost_entity_id(self) -> str | None:
+        return self._buy_cost_entity_id
+
+    @property
+    def sell_tax_percent_entity_id(self) -> str | None:
+        return self._sell_tax_percent_entity_id
 
     def _set_now(self, now: datetime):
         """Set the now timestamp. This is only for tests purpose"""

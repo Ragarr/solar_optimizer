@@ -33,6 +33,9 @@ async def async_setup_entry(
 
     entities = []
     if entry.data[CONF_DEVICE_TYPE] == CONF_DEVICE_CENTRAL:
+        # The enumeration algorithm has no priority term (groups and shares replace it)
+        if entry.data.get(CONF_ALGORITHM) == ALGORITHM_ENUMERATION:
+            return
         # Central config, create the select entity which holds the priority weight
         entity = SolarOptimizerPriorityWeightSelect(hass, coordinator)
         async_add_entities([entity], False)
@@ -42,6 +45,9 @@ async def async_setup_entry(
     device = coordinator.get_device_by_unique_id(unique_id)
     if device is None:
         _LOGGER.error("Calling switch.async_setup_entry in error cause device with unique_id %s not found", unique_id)
+        return
+
+    if configured_algorithm(hass) == ALGORITHM_ENUMERATION:
         return
 
     entities = [

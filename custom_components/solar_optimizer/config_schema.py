@@ -5,6 +5,7 @@ import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers import selector
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.input_number import DOMAIN as INPUT_NUMBER_DOMAIN
 from homeassistant.components.input_boolean import DOMAIN as INPUT_BOOLEAN_DOMAIN
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
@@ -36,7 +37,7 @@ types_schema_devices = vol.Schema(
 
 central_config_schema = vol.Schema(
     {
-        vol.Required(CONF_REFRESH_PERIOD_SEC, default=300): int,
+        vol.Required(CONF_REFRESH_PERIOD_SEC, default=DEFAULT_ENUMERATION_REFRESH_PERIOD_SEC): int,
         vol.Required(CONF_POWER_CONSUMPTION_ENTITY_ID): selector.EntitySelector(
             selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN, INPUT_NUMBER_DOMAIN])
         ),
@@ -64,6 +65,33 @@ central_config_schema = vol.Schema(
             selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN, INPUT_NUMBER_DOMAIN])
         ),
         vol.Optional(CONF_RAZ_TIME, default=DEFAULT_RAZ_TIME): str,
+        vol.Optional(CONF_ALGORITHM, default=DEFAULT_ALGORITHM): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=ALGORITHMS, translation_key="algorithm", mode="dropdown")
+        ),
+        vol.Optional(CONF_CONTRACTED_POWER_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN, INPUT_NUMBER_DOMAIN, NUMBER_DOMAIN])
+        ),
+        vol.Optional(CONF_CONTRACTED_POWER_MARGIN, default=DEFAULT_CONTRACTED_POWER_MARGIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=50, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_OFFPEAK_ENTITY_ID): selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=[BINARY_SENSOR_DOMAIN, INPUT_BOOLEAN_DOMAIN])
+        ),
+        vol.Optional(CONF_NOTIFY_SERVICE): str,
+        vol.Optional(CONF_GROUP_COUNT, default=DEFAULT_GROUP_COUNT): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_GROUP_IMPORT_CAPS): str,
+        vol.Optional(CONF_START_SEPARATION_SEC, default=DEFAULT_START_SEPARATION_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=3600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_WARMUP_SEC, default=DEFAULT_WARMUP_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=3600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_DISCARD_AFTER_COMMAND_SEC, default=DEFAULT_DISCARD_AFTER_COMMAND_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_FOREIGN_USER_IDS): str,
     }
 )
 
@@ -102,6 +130,32 @@ managed_device_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
+        vol.Optional(CONF_GROUP, default=1): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_VALUE, default=DEFAULT_VALUE): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MEASURED_POWER_ENTITY_ID): selector.EntitySelector(selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN])),
+        vol.Optional(CONF_CONFIRM_ON_MIN, default=DEFAULT_CONFIRM_ON_MIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=120, step=0.1, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_CONFIRM_OFF_MIN, default=DEFAULT_CONFIRM_OFF_MIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=120, step=0.1, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MAX_STARTS_PER_HOUR, default=DEFAULT_MAX_STARTS_PER_HOUR): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=60, step=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_SHED_REACTION_SEC, default=DEFAULT_SHED_REACTION_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_VERIFY_AFTER_SEC, default=DEFAULT_VERIFY_AFTER_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=5, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_NOT_ABSORBING_W): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=10000, step=10, unit_of_measurement="W", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MANUAL_IGNORE_TEMPLATE): str,
     }
 )
 
@@ -127,6 +181,7 @@ power_managed_device_schema = vol.Schema(
                     NUMBER_DOMAIN,
                     FAN_DOMAIN,
                     LIGHT_DOMAIN,
+                    SELECT_DOMAIN,
                 ]
             )
         ),
@@ -165,5 +220,31 @@ power_managed_device_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
+        vol.Optional(CONF_GROUP, default=1): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_VALUE, default=DEFAULT_VALUE): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=1, step=0.001, unit_of_measurement="€/kWh", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MEASURED_POWER_ENTITY_ID): selector.EntitySelector(selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN])),
+        vol.Optional(CONF_CONFIRM_ON_MIN, default=DEFAULT_CONFIRM_ON_MIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=120, step=0.1, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_CONFIRM_OFF_MIN, default=DEFAULT_CONFIRM_OFF_MIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=120, step=0.1, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MAX_STARTS_PER_HOUR, default=DEFAULT_MAX_STARTS_PER_HOUR): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=60, step=1, mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_SHED_REACTION_SEC, default=DEFAULT_SHED_REACTION_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_VERIFY_AFTER_SEC, default=DEFAULT_VERIFY_AFTER_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=5, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_NOT_ABSORBING_W): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=10000, step=10, unit_of_measurement="W", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_MANUAL_IGNORE_TEMPLATE): str,
     }
 )

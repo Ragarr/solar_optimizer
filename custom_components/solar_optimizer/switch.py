@@ -37,6 +37,8 @@ async def async_setup_entry(
 
     entities = []
     if entry.data[CONF_DEVICE_TYPE] == CONF_DEVICE_CENTRAL:
+        if entry.data.get(CONF_ALGORITHM) == ALGORITHM_ENUMERATION:
+            async_add_entities([SolarOptimizerDryRunSwitch(coordinator)])
         return
 
     unique_id = name_to_unique_id(entry.data[CONF_NAME])
@@ -86,6 +88,7 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
                     "next_date_available_power",
                     "battery_soc_threshold",
                     "battery_soc",
+                    "supervisor",
                 }
             )
         )
@@ -101,6 +104,7 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
         self._attr_has_entity_name = True
         self.entity_id = f"{SWITCH_DOMAIN}.solar_optimizer_{idx}"
         self._attr_name = "Active"
+        self._attr_translation_key = "active"
         self._attr_unique_id = "solar_optimizer_active_" + idx
         self._entity_id = device.entity_id
         self._attr_is_on = device.is_active
@@ -139,6 +143,9 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
                 _parse_datetime(last_state.attributes.get("next_date_available")),
                 _parse_datetime(last_state.attributes.get("next_date_available_power")),
             )
+
+        if last_state and isinstance(last_state.attributes.get("supervisor"), dict):
+            self.coordinator.runtime.restore_device(self._device.name, last_state.attributes["supervisor"])
 
         if last_state and last_state.attributes.get("manual_end_time"):
             try:
@@ -265,6 +272,7 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             "battery_soc": device.battery_soc,
             "device_name": device.name,
             "forced_end_time": device.forced_end_time.astimezone(current_tz).isoformat() if device.forced_end_time else None,
+            "supervisor": self.coordinator.runtime.device_state(device.name) if self.coordinator else None,
             "is_manual": device.is_manual,
             "manual_end_time": device.manual_end_time.astimezone(current_tz).isoformat() if device.manual_end_time else None,
         }
@@ -370,6 +378,7 @@ class ManagedDeviceEnable(SwitchEntity, RestoreEntity):
         self._attr_has_entity_name = True
         self.entity_id = f"{SWITCH_DOMAIN}.enable_solar_optimizer_{name}"
         self._attr_name = "Enable"
+        self._attr_translation_key = "enable"
         self._attr_unique_id = "solar_optimizer_enable_" + name
         self._attr_is_on = True
 
@@ -464,3 +473,46 @@ class ManagedDeviceEnable(SwitchEntity, RestoreEntity):
         self._attr_is_on = True
         self.async_write_ha_state()
         self.update_device_enabled()
+
+
+class SolarOptimizerDryRunSwitch(SwitchEntity, RestoreEntity):
+    """Dry run (shadow mode): the plan and the commands are computed and published, nothing is
+    sent to the devices. On by default: a new installation never acts before it is switched off."""
+
+    def __init__(self, coordinator: SolarOptimizerCoordinator):
+        self._coordinator = coordinator
+        self._attr_has_entity_name = True
+        self.entity_id = f"{SWITCH_DOMAIN}.solar_optimizer_dry_run"
+        self._attr_name = "Dry run"
+        self._attr_translation_key = "dry_run"
+        self._attr_unique_id = "solar_optimizer_dry_run"
+        self._attr_icon = "mdi:ghost"
+        self._attr_is_on = True
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        return DeviceInfo(
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, CONF_DEVICE_CENTRAL)},
+            name="Solar Optimizer",
+            manufacturer=DEVICE_MANUFACTURER,
+            model=INTEGRATION_MODEL,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        self._attr_is_on = last_state is None or last_state.state != "off"
+        self._coordinator.runtime.dry_run_entity = self
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._coordinator.runtime.dry_run_entity is self:
+            self._coordinator.runtime.dry_run_entity = None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._attr_is_on = True
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._attr_is_on = False
+        self.async_write_ha_state()

@@ -21,17 +21,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
         return
     coordinator: SolarOptimizerCoordinator = SolarOptimizerCoordinator.get_coordinator()
     device = coordinator.get_device_by_unique_id(name_to_unique_id(entry.data[CONF_NAME]))
-    if device is None or not device.manual_detection:
+    if device is None or not (device.manual_detection or configured_algorithm(hass) == ALGORITHM_ENUMERATION):
         return
-    async_add_entities([ManagedDeviceEndManualButton(device)])
+    async_add_entities([ManagedDeviceEndManualButton(device, coordinator)])
+    return
 
 
 class ManagedDeviceEndManualButton(ButtonEntity):
-    """Ends the manual mode of a device. No command is sent to the device."""
+    """Ends the manual mode of a device (and its faulty mark). No command is sent to the device."""
 
-    def __init__(self, device: ManagedDevice):
+    def __init__(self, device: ManagedDevice, coordinator: SolarOptimizerCoordinator):
         idx = name_to_unique_id(device.name)
         self._device = device
+        self._coordinator = coordinator
         self._attr_has_entity_name = True
         self.entity_id = f"{BUTTON_DOMAIN}.solar_optimizer_end_manual_{idx}"
         self._attr_name = "Back to automatic"
@@ -50,4 +52,5 @@ class ManagedDeviceEndManualButton(ButtonEntity):
         )
 
     async def async_press(self) -> None:
-        self._device.end_manual("button")
+        # Also clears a faulty mark or a "not absorbing" pause of the supervisor
+        self._coordinator.runtime.back_to_auto(self._device, "button")

@@ -162,7 +162,9 @@ async def test_default_values_central_config(
     for key, value in user_input.items():
         assert data.get(key) == value
 
-    assert data.get("refresh_period_sec") == 300
+    # Changed on purpose: new configurations use the enumeration algorithm, computed every 30 s
+    assert data.get("refresh_period_sec") == 30
+    assert data.get("algorithm") == "enumeration"
     assert data.get("raz_time") == DEFAULT_RAZ_TIME
 
     assert data["smooth_production"]

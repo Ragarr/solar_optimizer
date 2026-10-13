@@ -14,6 +14,9 @@ from homeassistant.const import STATE_ON, STATE_UNAVAILABLE, STATE_UNKNOWN
 
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.components.fan import DOMAIN as FAN_DOMAIN
+from homeassistant.components.select import DOMAIN as SELECT_DOMAIN
+
+from .supervisor_core import DeviceParams
 
 from .const import (
     get_tz,
@@ -33,6 +36,22 @@ from .const import (
     DEFAULT_MANUAL_MAX_HOURS,
     DEFAULT_ECHO_WINDOW_SEC,
     EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
+    CONF_GROUP,
+    CONF_VALUE,
+    CONF_MEASURED_POWER_ENTITY_ID,
+    CONF_CONFIRM_ON_MIN,
+    CONF_CONFIRM_OFF_MIN,
+    CONF_MAX_STARTS_PER_HOUR,
+    CONF_SHED_REACTION_SEC,
+    CONF_VERIFY_AFTER_SEC,
+    CONF_NOT_ABSORBING_W,
+    CONF_MANUAL_IGNORE_TEMPLATE,
+    DEFAULT_VALUE,
+    DEFAULT_CONFIRM_ON_MIN,
+    DEFAULT_CONFIRM_OFF_MIN,
+    DEFAULT_MAX_STARTS_PER_HOUR,
+    DEFAULT_SHED_REACTION_SEC,
+    DEFAULT_VERIFY_AFTER_SEC,
     ConfigurationError,
     EVENT_TYPE_SOLAR_OPTIMIZER_CHANGE_POWER,
     EVENT_TYPE_SOLAR_OPTIMIZER_STATE_CHANGE,
@@ -89,6 +108,9 @@ async def do_service_action(
         value = round(requested_power / convert_power_divide_factor)
         if parameter:
             attributes = parameter
+        if domain in (SELECT_DOMAIN, "input_select"):
+            # Options like "6A", "8A"...: the option whose number is the value
+            value = _select_option_for(hass, entity_id, value)
         service_data = {attributes: value}
     else:
         if parameter:
@@ -119,6 +141,22 @@ async def do_service_action(
     )
 
 
+def _leading_number(value) -> float | None:
+    """Number at the start of a state or option ("13A" -> 13.0), None if there is none"""
+    match = re.match(r"\s*(-?\d+(?:[.,]\d+)?)", str(value)) if value is not None else None
+    return float(match.group(1).replace(",", ".")) if match else None
+
+
+def _select_option_for(hass: HomeAssistant, entity_id: str, value):
+    """The option of a select whose leading number equals value (the value itself if none)"""
+    state = hass.states.get(entity_id)
+    for option in (state.attributes.get("options") or []) if state else []:
+        number = _leading_number(option)
+        if number is not None and math.isclose(number, float(value)):
+            return option
+    return str(value)
+
+
 def do_event_action(
     hass: HomeAssistant,
     entity_id,
@@ -146,6 +184,10 @@ def do_event_action(
             "entity_id": entity_id,
         },
     )
+
+
+def _or(value, default):
+    return default if value in (None, "") else value
 
 
 class ManagedDevice:
@@ -250,6 +292,21 @@ class ManagedDevice:
         self._last_power_command: float | None = None  # last power commanded (W)
         self._last_command_time: datetime | None = None
         self._manual_end_time: datetime | None = None
+        ignore = device_config.get(CONF_MANUAL_IGNORE_TEMPLATE)
+        self._manual_ignore_template = Template(ignore, hass) if ignore else None
+
+        # Optimiser (enumeration) and supervisor
+        self._group = int(device_config.get(CONF_GROUP) or 1)
+        self._default_value = float(device_config.get(CONF_VALUE) if device_config.get(CONF_VALUE) is not None else DEFAULT_VALUE)
+        self._measured_power_entity_id = device_config.get(CONF_MEASURED_POWER_ENTITY_ID)
+        self._confirm_on_sec = float(_or(device_config.get(CONF_CONFIRM_ON_MIN), DEFAULT_CONFIRM_ON_MIN)) * 60
+        self._confirm_off_sec = float(_or(device_config.get(CONF_CONFIRM_OFF_MIN), DEFAULT_CONFIRM_OFF_MIN)) * 60
+        self._max_starts_per_hour = int(_or(device_config.get(CONF_MAX_STARTS_PER_HOUR), DEFAULT_MAX_STARTS_PER_HOUR))
+        self._shed_reaction_sec = float(_or(device_config.get(CONF_SHED_REACTION_SEC), DEFAULT_SHED_REACTION_SEC))
+        self._verify_after_sec = float(_or(device_config.get(CONF_VERIFY_AFTER_SEC), DEFAULT_VERIFY_AFTER_SEC))
+        not_absorbing = device_config.get(CONF_NOT_ABSORBING_W)
+        self._not_absorbing_w = float(not_absorbing) if not_absorbing not in (None, "", 0) else None
+        self._value_entities: dict[str, object] = {}  # "peak" / "offpeak" -> number entity
 
         # Some checks
         # min_on_time_per_day_sec requires an offpeak_time
@@ -458,10 +515,8 @@ class ManagedDevice:
         if self._power_entity_id and self._power_entity_id.startswith(POWERED_ENTITY_DOMAINS_NEED_ATTR):
             parameter = (self._change_power_service or "").split("/")
             value = state.attributes.get(parameter[2]) if len(parameter) > 2 else None
-        match = re.match(r"\s*(-?\d+(?:[.,]\d+)?)", str(value)) if value is not None else None
-        if not match:
-            return None
-        return float(match.group(1).replace(",", ".")) * self._convert_power_divide_factor
+        number = _leading_number(value)
+        return None if number is None else number * self._convert_power_divide_factor
 
     def classify_underlying_change(self, entity_id: str, new_state: State | None, old_state: State | None) -> str | None:
         """Classify a state change of the device entity or of its power entity:
@@ -484,7 +539,15 @@ class ManagedDevice:
         if self._last_command_time is not None and (self.now - self._last_command_time).total_seconds() <= self._echo_window_sec:
             return "echo"
         if context is not None and context.user_id is not None:
+            if context.user_id in self._coordinator_foreign_users():
+                return "foreign"
             return "manual"
+        if self._manual_ignore_template is not None:
+            try:
+                if self._manual_ignore_template.async_render(context={}) is True:
+                    return "device"
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.warning("%s - manual ignore template failed: %s", self.name, err)
         # No user: compare with what we commanded last for this entity (or with the previous value)
         if entity_id == self._power_entity_id and entity_id != self._entity_id:
             value = self._power_from_state(new_state)
@@ -507,6 +570,146 @@ class ManagedDevice:
             return "same"
         return "manual"
 
+    def _coordinator_foreign_users(self) -> set[str]:
+        return set(getattr(self._coordinator, "foreign_user_ids", None) or ())
+
+    # ------------------------------------------------------------------ optimiser and supervisor
+
+    @property
+    def group(self) -> int:
+        """Priority group (1 = highest)"""
+        return self._group
+
+    @property
+    def default_value(self) -> float:
+        """Configured value of 1 kWh delivered to this device (€/kWh)"""
+        return self._default_value
+
+    @property
+    def measured_power_entity_id(self) -> str | None:
+        return self._measured_power_entity_id
+
+    def set_value_entity(self, period: str, entity) -> None:
+        """Register the number entity holding the value for a tariff period ("peak"/"offpeak")"""
+        self._value_entities[period] = entity
+
+    def value(self, offpeak: bool) -> float:
+        """Value of 1 kWh delivered to the device in the current tariff period"""
+        entity = self._value_entities.get("offpeak" if offpeak else "peak")
+        value = getattr(entity, "native_value", None) if entity is not None else None
+        return float(value) if value is not None else self._default_value
+
+    def levels_w(self) -> tuple[float, ...]:
+        """Admissible levels in W, 0 included. On/off devices: (0, power_max). Modulable devices:
+        the options of a select power entity (e.g. "6A".."32A" x the divide factor) within
+        [power_min, power_max], or power_min..power_max by power_step."""
+        power_max = float(self.power_max)
+        if not self._can_change_power:
+            return (0.0, power_max)
+        levels = []
+        state = self._hass.states.get(self._power_entity_id) if self._power_entity_id else None
+        if self._power_entity_id and self._power_entity_id.startswith((SELECT_DOMAIN + ".", "input_select.")) and state is not None:
+            for option in state.attributes.get("options") or []:
+                number = _leading_number(option)
+                if number is not None:
+                    watts = number * self._convert_power_divide_factor
+                    if self._power_min - 1e-6 <= watts <= power_max + 1e-6:
+                        levels.append(watts)
+        if not levels and self._power_step > 0:
+            watts = float(self._power_min)
+            while watts <= power_max + 1e-6:
+                levels.append(watts)
+                watts += self._power_step
+        return (0.0,) + tuple(sorted(set(levels)))
+
+    def supervisor_params(self) -> DeviceParams:
+        """Guards of the device for the supervisor (durations configured in minutes)"""
+        return DeviceParams(
+            levels=tuple(round(w / 1000, 4) for w in self.levels_w()),
+            confirm_on=self._confirm_on_sec,
+            confirm_off=self._confirm_off_sec,
+            min_on=float(self._duration_sec),
+            min_off=float(self._duration_stop_sec),
+            max_starts_per_hour=self._max_starts_per_hour,
+            level_interval=float(self._duration_power_sec) if self._can_change_power else 0.0,
+            shed_reaction=self._shed_reaction_sec,
+            verify_after=self._verify_after_sec,
+            echo_window=self._echo_window_sec,
+            not_absorbing_kw=None if self._not_absorbing_w is None else self._not_absorbing_w / 1000,
+        )
+
+    def level_w(self) -> float | None:
+        """Current setting of a modulable device (W), read from its power entity (also when the
+        device is off). None for on/off devices or without a value."""
+        if not self._can_change_power or not self._power_entity_id:
+            return None
+        state = self._hass.states.get(self._power_entity_id)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        return self._power_from_state(state)
+
+    def measured_w(self) -> float | None:
+        """Measured power of the device (W), if a measure entity is configured and available"""
+        if not self._measured_power_entity_id:
+            return None
+        state = self._hass.states.get(self._measured_power_entity_id)
+        if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+            return None
+        try:
+            value = float(state.state)
+        except (TypeError, ValueError):
+            return None
+        unit = state.attributes.get("unit_of_measurement")
+        return value * 1000 if unit == "kW" else value
+
+    @property
+    def is_reachable(self) -> bool:
+        """The device entity is available"""
+        state = self._hass.states.get(self._entity_id)
+        return state is not None and state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN)
+
+    @property
+    def is_available_for_plan(self) -> bool:
+        """d_i: the usable template, the battery threshold and the maximal on time per day (the
+        timers are the supervisor's job, not part of this)"""
+        try:
+            if self._on_time_sec >= self.max_on_time_per_day_sec:
+                return False
+            if self._check_usable_template.async_render(context={}) is not True:
+                return False
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.warning("%s - usable template failed: %s", self.name, err)
+            return False
+        if self._battery_soc is not None and self.battery_soc_threshold is not None and self._battery_soc < self.battery_soc_threshold:
+            return False
+        return True
+
+    def forced_level_w(self, offpeak_on: bool) -> float | None:
+        """Level forced by the minimal on time per day (off-peak backup), None if not forced.
+        The off-peak window is the off-peak entity of the central configuration when there is
+        one (offpeak_on), otherwise offpeak_time .. raz_time. The supervisor still applies all
+        its guards to it."""
+        try:
+            if self.min_on_time_per_day_sec <= 0:
+                return None
+            raz = self._coordinator.raz_time
+            if getattr(self._coordinator, "runtime", None) is not None and self._coordinator.runtime.config.get("offpeak_entity_id"):
+                in_window = offpeak_on
+            elif self._offpeak_time is None or raz is None:
+                return None
+            elif self._offpeak_time >= raz:
+                in_window = self.now.time() >= self._offpeak_time or self.now.time() < raz
+            else:
+                in_window = self._offpeak_time <= self.now.time() < raz
+            if not in_window:
+                return None
+            if self._on_time_sec >= min(self.min_on_time_per_day_sec, self.max_on_time_per_day_sec, self.max_on_time_offpeak_sec):
+                return None
+            return float(self.offpeak_power) if self._can_change_power else float(self.power_max)
+        except (ConfigurationError, TypeError, ValueError) as err:
+            _LOGGER.error("%s - invalid off-peak configuration: %s", self._name, err)
+            return None
+
     def next_raz_datetime(self, raz_time: time) -> datetime:
         """Next occurrence of the daily reset time after now"""
         now = self.now
@@ -528,7 +731,7 @@ class ManagedDevice:
         else:
             self.reset_next_date_available(ACTION_ACTIVATE if self.is_active else ACTION_DEACTIVATE)
         _LOGGER.info("%s - Manual change detected on %s: manual mode until %s", self.name, entity_id, end)
-        self._hass.bus.fire(
+        self._hass.bus.async_fire(
             EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
             {"device_unique_id": self._unique_id, "entity_id": entity_id, "manual_end_time": end.isoformat(), "is_manual": True},
         )
@@ -540,7 +743,7 @@ class ManagedDevice:
             return
         _LOGGER.info("%s - Manual mode ended (%s): back to automatic, no command sent", self.name, reason)
         self._manual_end_time = None
-        self._hass.bus.fire(
+        self._hass.bus.async_fire(
             EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
             {"device_unique_id": self._unique_id, "entity_id": None, "manual_end_time": None, "is_manual": False, "reason": reason},
         )
@@ -623,9 +826,11 @@ class ManagedDevice:
         else:
             power_entity_value = power_entity_state.state
 
-        self._current_power = round(
-            float(power_entity_value) * self._convert_power_divide_factor
-        )
+        number = _leading_number(power_entity_value)
+        if number is None:
+            self._current_power = self._power_min
+            return
+        self._current_power = round(number * self._convert_power_divide_factor)
         _LOGGER.debug(
             "Set current_power to %s for device %s cause can_change_power and amps is %s",
             self._current_power,

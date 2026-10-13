@@ -212,7 +212,7 @@ async def async_setup(
         if device is None:
             _LOGGER.warning("end_manual: device '%s' not found", call.data.get("device_id"))
             return
-        device.end_manual("service")
+        coordinator.runtime.back_to_auto(device, "service")
 
     hass.services.async_register(DOMAIN, SERVICE_END_MANUAL, _handle_end_manual)
 

@@ -12,7 +12,7 @@ from homeassistant.util import dt as dt_util
 from homeassistant.helpers.template import Template, is_template_string
 
 SOLAR_OPTIMIZER_DOMAIN = DOMAIN = "solar_optimizer"
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.SELECT, Platform.BUTTON]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.SWITCH, Platform.SELECT, Platform.BUTTON, Platform.NUMBER]
 
 DEVICE_MANUFACTURER = "JMCOLLIN"
 DEVICE_MODEL = "Solar Optimizer"
@@ -85,6 +85,47 @@ CONF_ECHO_WINDOW_SEC = "echo_window_sec"
 CONF_MANUAL_RELEASE_TEMPLATE = "manual_release_template"
 DEFAULT_MANUAL_MAX_HOURS = 12
 DEFAULT_ECHO_WINDOW_SEC = 60
+
+# Algorithm and supervisor
+CONF_ALGORITHM = "algorithm"
+ALGORITHM_ANNEALING = "annealing"
+ALGORITHM_ENUMERATION = "enumeration"
+ALGORITHMS = [ALGORITHM_ENUMERATION, ALGORITHM_ANNEALING]
+CONF_CONTRACTED_POWER_ENTITY_ID = "contracted_power_entity_id"
+CONF_CONTRACTED_POWER_MARGIN = "contracted_power_margin_percent"
+CONF_OFFPEAK_ENTITY_ID = "offpeak_entity_id"
+CONF_NOTIFY_SERVICE = "notify_service"
+CONF_START_SEPARATION_SEC = "start_separation_sec"
+CONF_WARMUP_SEC = "warmup_sec"
+CONF_DISCARD_AFTER_COMMAND_SEC = "discard_after_command_sec"
+CONF_FOREIGN_USER_IDS = "foreign_user_ids"
+CONF_GROUP_COUNT = "group_count"
+CONF_GROUP_IMPORT_CAPS = "group_import_caps"
+CONF_GROUP = "group"
+CONF_VALUE = "value"
+CONF_MEASURED_POWER_ENTITY_ID = "measured_power_entity_id"
+CONF_CONFIRM_ON_MIN = "confirm_on_min"
+CONF_CONFIRM_OFF_MIN = "confirm_off_min"
+CONF_MAX_STARTS_PER_HOUR = "max_starts_per_hour"
+CONF_SHED_REACTION_SEC = "shed_reaction_sec"
+CONF_VERIFY_AFTER_SEC = "verify_after_sec"
+CONF_NOT_ABSORBING_W = "not_absorbing_w"
+CONF_MANUAL_IGNORE_TEMPLATE = "manual_ignore_template"
+DEFAULT_ALGORITHM = ALGORITHM_ENUMERATION
+DEFAULT_ENUMERATION_REFRESH_PERIOD_SEC = 30
+DEFAULT_CONTRACTED_POWER_MARGIN = 10
+DEFAULT_START_SEPARATION_SEC = 60
+DEFAULT_WARMUP_SEC = 120
+DEFAULT_DISCARD_AFTER_COMMAND_SEC = 25
+DEFAULT_GROUP_COUNT = 2
+DEFAULT_VALUE = 0.10
+DEFAULT_CONFIRM_ON_MIN = 1
+DEFAULT_CONFIRM_OFF_MIN = 5
+DEFAULT_MAX_STARTS_PER_HOUR = 3
+DEFAULT_SHED_REACTION_SEC = 10
+DEFAULT_VERIFY_AFTER_SEC = 45
+EVENT_MOBILE_APP_NOTIFICATION_ACTION = "mobile_app_notification_action"
+NOTIFICATION_ACTION_END_MANUAL = "SOLAR_OPTIMIZER_END_MANUAL_"
 CONF_BATTERY_SOC_ENTITY_ID = "battery_soc_entity_id"
 CONF_BATTERY_CHARGE_POWER_ENTITY_ID = "battery_charge_power_entity_id"
 CONF_BATTERY_SOC_THRESHOLD = "battery_soc_threshold"
@@ -241,3 +282,12 @@ class UnknownEntity(HomeAssistantError):
 
 class InvalidTime(HomeAssistantError):
     """Error to indicate the give time is invalid"""
+
+
+def configured_algorithm(hass: HomeAssistant) -> str:
+    """Algorithm of the central configuration entry (it may not be loaded yet when a device entry
+    is set up). Entries made before the enumeration algorithm existed use the annealing."""
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.data.get(CONF_DEVICE_TYPE) == CONF_DEVICE_CENTRAL:
+            return entry.data.get(CONF_ALGORITHM) or ALGORITHM_ANNEALING
+    return ALGORITHM_ANNEALING
