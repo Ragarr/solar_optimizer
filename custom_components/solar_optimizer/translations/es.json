@@ -1,0 +1,508 @@
+{
+    "title": "Solar Optimizer",
+    "config": {
+        "flow_title": "Configuración de Solar Optimizer",
+        "step": {
+            "user": {
+                "title": "Tipo de configuración",
+                "description": "Indica el tipo de configuración",
+                "data": {
+                    "device_type": "Tipo de equipo"
+                },
+                "data_description": {
+                    "device_type": "Equipo de encendido/apagado o equipo con potencia regulable"
+                }
+            },
+            "device_central": {
+                "title": "Parámetros comunes",
+                "description": "Indica los parámetros comunes",
+                "data": {
+                    "refresh_period_sec": "Periodo de cálculo",
+                    "power_consumption_entity_id": "Consumo neto",
+                    "power_production_entity_id": "Producción solar",
+                    "subscribe_to_events": "Recalcular con cada valor nuevo de producción o consumo",
+                    "sell_cost_entity_id": "Precio de venta de la energía",
+                    "buy_cost_entity_id": "Precio de compra de la energía",
+                    "sell_tax_percent_entity_id": "Impuesto sobre la venta (%)",
+                    "smooth_production": "Suavizar el consumo neto",
+                    "battery_soc_entity_id": "Carga de la batería",
+                    "battery_charge_power_entity_id": "Potencia de carga de la batería",
+                    "raz_time": "Hora de cambio de día",
+                    "smoothing_window_sec": "Ventana de suavizado (s)",
+                    "algorithm": "Algoritmo",
+                    "contracted_power_entity_id": "Potencia contratada",
+                    "contracted_power_margin_percent": "Margen bajo la potencia contratada (%)",
+                    "offpeak_entity_id": "Periodo valle",
+                    "notify_service": "Servicio de notificación",
+                    "group_count": "Número de grupos",
+                    "group_import_caps": "Tope de importación por grupo (kW)",
+                    "start_separation_sec": "Separación entre dos arranques (s)",
+                    "warmup_sec": "Espera tras un reinicio (s)",
+                    "discard_after_command_sec": "Medidas descartadas tras una orden (s)",
+                    "foreign_user_ids": "Usuarios de otro controlador"
+                },
+                "data_description": {
+                    "refresh_period_sec": "Aunque no haya datos nuevos, se recalcula al menos con este periodo en segundos. Cada cálculo tiene un coste de CPU: no lo pongas demasiado corto",
+                    "power_consumption_entity_id": "Sensor del consumo neto (importación de red). Debe ser negativo cuando se exporta.",
+                    "power_production_entity_id": "Sensor de la producción solar.",
+                    "subscribe_to_events": "Recalcular en cuanto lleguen datos nuevos. Vigila el consumo de CPU.",
+                    "sell_cost_entity_id": "Entidad con el precio de venta actual.",
+                    "buy_cost_entity_id": "Entidad con el precio de compra actual.",
+                    "sell_tax_percent_entity_id": "Impuesto sobre la energía vendida (0 a 100)",
+                    "smooth_production": "Si se marca, el consumo neto (importación/exportación) se promedia en una ventana de tiempo para no conmutar por variaciones breves",
+                    "battery_soc_entity_id": "Carga de la batería en %. Déjalo vacío si no hay batería",
+                    "battery_charge_power_entity_id": "Potencia neta de carga de la batería en W (negativa cargando, positiva descargando). Déjalo vacío si no hay batería.",
+                    "raz_time": "Hora a la que se ponen a cero los contadores diarios y termina el modo manual. Antes de que salga el sol, pero dejando tiempo para la carga nocturna",
+                    "smoothing_window_sec": "Duración de la media móvil del consumo neto",
+                    "algorithm": "enumeration: optimización económica exacta con el supervisor (tiempos mínimos, confirmaciones, deslastre, invariantes); annealing: el algoritmo original",
+                    "contracted_power_entity_id": "Entidad con la potencia contratada (kW o W). La importación se mantiene por debajo, menos el margen",
+                    "contracted_power_margin_percent": "El límite es la potencia contratada menos este porcentaje",
+                    "offpeak_entity_id": "Sensor binario encendido en el periodo valle (valores por tramo y carga mínima en valle)",
+                    "notify_service": "p. ej. notify.mobile_app_movil: cambios manuales (con la acción «Volver a automático»), equipos averiados, violaciones de invariantes",
+                    "group_count": "Grupos de equipos atendidos por orden de prioridad, cada uno con su cuota del excedente",
+                    "group_import_caps": "Opcional, p. ej. 2:0.5 = el grupo 2 nunca importa más de 0,5 kW",
+                    "start_separation_sec": "Dos arranques de cualesquiera equipos se separan al menos esto",
+                    "warmup_sec": "Tras un reinicio no se ordena nada hasta tener este tiempo de medidas válidas (salvo el deslastre)",
+                    "discard_after_command_sec": "Las muestras del excedente justo después de una orden no se promedian (las medidas aún se mueven)",
+                    "foreign_user_ids": "Ids de usuario separados por comas: sus cambios se registran pero no cuentan como manuales (útil en modo sombra junto a otro controlador)"
+                }
+            },
+            "device": {
+                "title": "Parámetros del equipo",
+                "description": "Indica los parámetros del equipo",
+                "data": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad del equipo",
+                    "power_max": "Potencia del equipo",
+                    "check_usable_template": "Plantilla de disponibilidad",
+                    "check_active_template": "Plantilla de encendido",
+                    "duration_min": "Mínimo encendido (min)",
+                    "duration_stop_min": "Mínimo apagado (min)",
+                    "action_mode": "Modo de acción",
+                    "activation_service": "Acción de encendido",
+                    "deactivation_service": "Acción de apagado",
+                    "battery_soc_threshold": "Umbral de carga de la batería",
+                    "max_on_time_per_day_min": "Máximo encendido al día",
+                    "min_on_time_per_day_min": "Mínimo encendido al día",
+                    "max_on_time_offpeak_min": "Máximo encendido en valle",
+                    "offpeak_time": "Hora de inicio del valle",
+                    "manual_detection": "Detectar cambios manuales",
+                    "manual_max_hours": "Duración máxima del modo manual (h)",
+                    "echo_window_sec": "Ventana de eco (s)",
+                    "manual_release_template": "Plantilla de fin del modo manual",
+                    "group": "Grupo",
+                    "value": "Valor de 1 kWh (€/kWh)",
+                    "measured_power_entity_id": "Potencia medida",
+                    "confirm_on_min": "Confirmación de encendido (min)",
+                    "confirm_off_min": "Confirmación de apagado (min)",
+                    "max_starts_per_hour": "Arranques máximos por hora",
+                    "shed_reaction_sec": "Reacción del deslastre (s)",
+                    "verify_after_sec": "Espera de verificación (s)",
+                    "not_absorbing_w": "Umbral de «no absorbe» (W)",
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                },
+                "data_description": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad que enciende y apaga el equipo",
+                    "power_max": "Potencia del equipo encendido. Número o plantilla",
+                    "check_usable_template": "Plantilla que dice si el equipo se puede usar (d_i). Ejemplo `True` o `states('sensor.mi_sensor') | float > 10` (entre dobles llaves)",
+                    "check_active_template": "Plantilla que dice si el equipo está encendido. Vacía para interruptores. Ejemplo `not is_state('climate.salon', 'off')` (entre dobles llaves)",
+                    "duration_min": "Tiempo mínimo encendido (T_on), en minutos",
+                    "duration_stop_min": "Tiempo mínimo apagado (T_off), en minutos",
+                    "action_mode": "Cómo se acciona el equipo: llamando a una acción o enviando un evento",
+                    "activation_service": "Acción de encendido. Ejemplo `switch/turn_on` o `climate/set_hvac_mode/hvac_mode:cool`",
+                    "deactivation_service": "Acción de apagado. Ejemplo `switch/turn_off` o `climate/set_hvac_mode/hvac_mode:off`. Vacía si el equipo se apaga solo",
+                    "battery_soc_threshold": "Carga mínima de la batería para encender el equipo. Número o plantilla",
+                    "max_on_time_per_day_min": "Tiempo máximo encendido al día, en minutos. Número o plantilla",
+                    "min_on_time_per_day_min": "Tiempo mínimo encendido al día, en minutos. Si no se alcanza con sol, se completa en valle (pasando por las guardas). 0 lo desactiva",
+                    "max_on_time_offpeak_min": "Tiempo máximo forzado en valle, en minutos. Por defecto, el máximo diario; entre el mínimo y el máximo diarios.",
+                    "offpeak_time": "Hora de inicio del valle (HH:MM). Si la configuración central tiene una entidad de valle, se usa esa",
+                    "manual_detection": "Si se marca, un cambio del equipo (o de su entidad de potencia) que no haga Solar Optimizer lo pasa a manual: no se toca hasta que termine el modo manual",
+                    "manual_max_hours": "El modo manual termina como mucho tras este tiempo, y siempre al cambio de día",
+                    "echo_window_sec": "Los cambios vistos durante este tiempo tras una orden de Solar Optimizer se consideran causados por ella",
+                    "manual_release_template": "Plantilla opcional: cuando da verdadero, termina el modo manual (p. ej. coche desenchufado)",
+                    "group": "Grupo de prioridad del equipo (1 = se atiende primero)",
+                    "value": "Lo que vale 1 kWh entregado a este equipo: entre el precio de venta y el precio de compra más barato. Valor inicial de las entidades de valor en punta y en valle",
+                    "measured_power_entity_id": "Sensor opcional con la potencia que consume de verdad el equipo (W)",
+                    "confirm_on_min": "El plan debe pedir el encendido este tiempo sin interrupción antes de encender",
+                    "confirm_off_min": "El plan debe pedir el apagado este tiempo sin interrupción antes de apagar",
+                    "max_starts_per_hour": "Arranques del equipo en cualquier ventana de 60 min",
+                    "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
+                    "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
+                    "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                }
+            },
+            "powered_device": {
+                "title": "Parámetros del equipo regulable",
+                "description": "Indica los parámetros del equipo regulable",
+                "data": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad del equipo",
+                    "power_max": "Potencia máxima",
+                    "power_min": "Potencia mínima",
+                    "power_step": "Paso de potencia",
+                    "check_usable_template": "Plantilla de disponibilidad",
+                    "check_active_template": "Plantilla de encendido",
+                    "duration_min": "Mínimo encendido (min)",
+                    "duration_stop_min": "Mínimo apagado (min)",
+                    "action_mode": "Modo de acción",
+                    "activation_service": "Acción de encendido",
+                    "deactivation_service": "Acción de apagado",
+                    "power_entity_id": "Entidad de potencia",
+                    "duration_power_min": "Intervalo entre cambios de potencia (min)",
+                    "change_power_service": "Acción de cambio de potencia",
+                    "convert_power_divide_factor": "Factor de conversión",
+                    "battery_soc_threshold": "Umbral de carga de la batería",
+                    "max_on_time_per_day_min": "Máximo encendido al día",
+                    "min_on_time_per_day_min": "Mínimo encendido al día",
+                    "max_on_time_offpeak_min": "Máximo encendido en valle",
+                    "offpeak_power": "Potencia en valle",
+                    "offpeak_time": "Hora de inicio del valle",
+                    "manual_detection": "Detectar cambios manuales",
+                    "manual_max_hours": "Duración máxima del modo manual (h)",
+                    "echo_window_sec": "Ventana de eco (s)",
+                    "manual_release_template": "Plantilla de fin del modo manual",
+                    "group": "Grupo",
+                    "value": "Valor de 1 kWh (€/kWh)",
+                    "measured_power_entity_id": "Potencia medida",
+                    "confirm_on_min": "Confirmación de encendido (min)",
+                    "confirm_off_min": "Confirmación de apagado (min)",
+                    "max_starts_per_hour": "Arranques máximos por hora",
+                    "shed_reaction_sec": "Reacción del deslastre (s)",
+                    "verify_after_sec": "Espera de verificación (s)",
+                    "not_absorbing_w": "Umbral de «no absorbe» (W)",
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                },
+                "data_description": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad que enciende y apaga el equipo",
+                    "power_max": "Potencia del equipo encendido. Número o plantilla",
+                    "power_min": "Potencia mínima del equipo encendido",
+                    "power_step": "Paso de potencia del equipo",
+                    "check_usable_template": "Plantilla que dice si el equipo se puede usar (d_i). Ejemplo `True` o `states('sensor.mi_sensor') | float > 10` (entre dobles llaves)",
+                    "check_active_template": "Plantilla que dice si el equipo está encendido. Vacía para interruptores. Ejemplo `not is_state('climate.salon', 'off')` (entre dobles llaves)",
+                    "duration_min": "Tiempo mínimo encendido (T_on), en minutos",
+                    "duration_stop_min": "Tiempo mínimo apagado (T_off), en minutos",
+                    "action_mode": "Cómo se acciona el equipo: llamando a una acción o enviando un evento",
+                    "activation_service": "Acción de encendido. Ejemplo `switch/turn_on` o `climate/set_hvac_mode/hvac_mode:cool`",
+                    "deactivation_service": "Acción de apagado. Ejemplo `switch/turn_off` o `climate/set_hvac_mode/hvac_mode:off`",
+                    "power_entity_id": "Entidad que fija la potencia (number, select con opciones como «6A»…)",
+                    "duration_power_min": "Tiempo mínimo entre dos cambios de potencia, en minutos",
+                    "change_power_service": "Acción para cambiar la potencia. Ejemplo `number/set_value` o `select/select_option/option`",
+                    "convert_power_divide_factor": "Factor para pasar de W a las unidades de la entidad de potencia (W por amperio, p. ej. 232)",
+                    "battery_soc_threshold": "Carga mínima de la batería para encender el equipo. Número o plantilla",
+                    "max_on_time_per_day_min": "Tiempo máximo encendido al día, en minutos. Número o plantilla",
+                    "min_on_time_per_day_min": "Tiempo mínimo encendido al día, en minutos. Si no se alcanza con sol, se completa en valle (pasando por las guardas). 0 lo desactiva",
+                    "max_on_time_offpeak_min": "Tiempo máximo forzado en valle, en minutos. Por defecto, el máximo diario; entre el mínimo y el máximo diarios.",
+                    "offpeak_power": "Potencia de la carga forzada en valle. Por defecto, la máxima; debe encajar en el rango y el paso.",
+                    "offpeak_time": "Hora de inicio del valle (HH:MM). Si la configuración central tiene una entidad de valle, se usa esa",
+                    "manual_detection": "Si se marca, un cambio del equipo (o de su entidad de potencia) que no haga Solar Optimizer lo pasa a manual: no se toca hasta que termine el modo manual",
+                    "manual_max_hours": "El modo manual termina como mucho tras este tiempo, y siempre al cambio de día",
+                    "echo_window_sec": "Los cambios vistos durante este tiempo tras una orden de Solar Optimizer se consideran causados por ella",
+                    "manual_release_template": "Plantilla opcional: cuando da verdadero, termina el modo manual (p. ej. coche desenchufado)",
+                    "group": "Grupo de prioridad del equipo (1 = se atiende primero)",
+                    "value": "Lo que vale 1 kWh entregado a este equipo: entre el precio de venta y el precio de compra más barato. Valor inicial de las entidades de valor en punta y en valle",
+                    "measured_power_entity_id": "Sensor opcional con la potencia que consume de verdad el equipo (W)",
+                    "confirm_on_min": "El plan debe pedir el encendido este tiempo sin interrupción antes de encender",
+                    "confirm_off_min": "El plan debe pedir el apagado este tiempo sin interrupción antes de apagar",
+                    "max_starts_per_hour": "Arranques del equipo en cualquier ventana de 60 min",
+                    "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
+                    "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
+                    "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                }
+            }
+        },
+        "error": {
+            "format_time_invalid": "La hora debe tener el formato HH:MM",
+            "invalid_value": "Valor no válido o incompatible con los límites del equipo",
+            "invalid_offpeak_duration": "El máximo en valle debe estar entre el mínimo y el máximo diarios"
+        }
+    },
+    "options": {
+        "flow_title": "Opciones de Solar Optimizer",
+        "step": {
+            "user": {
+                "title": "Tipo de configuración",
+                "description": "Indica el tipo de configuración",
+                "data": {
+                    "device_type": "Tipo de equipo"
+                },
+                "data_description": {
+                    "device_type": "Configuración común o de un equipo"
+                }
+            },
+            "device_central": {
+                "title": "Parámetros comunes",
+                "description": "Indica los parámetros comunes",
+                "data": {
+                    "refresh_period_sec": "Periodo de cálculo",
+                    "power_consumption_entity_id": "Consumo neto",
+                    "power_production_entity_id": "Producción solar",
+                    "subscribe_to_events": "Recalcular con cada valor nuevo de producción o consumo",
+                    "sell_cost_entity_id": "Precio de venta de la energía",
+                    "buy_cost_entity_id": "Precio de compra de la energía",
+                    "sell_tax_percent_entity_id": "Impuesto sobre la venta (%)",
+                    "smooth_production": "Suavizar el consumo neto",
+                    "battery_soc_entity_id": "Carga de la batería",
+                    "battery_charge_power_entity_id": "Potencia de carga de la batería",
+                    "raz_time": "Hora de cambio de día",
+                    "smoothing_window_sec": "Ventana de suavizado (s)",
+                    "algorithm": "Algoritmo",
+                    "contracted_power_entity_id": "Potencia contratada",
+                    "contracted_power_margin_percent": "Margen bajo la potencia contratada (%)",
+                    "offpeak_entity_id": "Periodo valle",
+                    "notify_service": "Servicio de notificación",
+                    "group_count": "Número de grupos",
+                    "group_import_caps": "Tope de importación por grupo (kW)",
+                    "start_separation_sec": "Separación entre dos arranques (s)",
+                    "warmup_sec": "Espera tras un reinicio (s)",
+                    "discard_after_command_sec": "Medidas descartadas tras una orden (s)",
+                    "foreign_user_ids": "Usuarios de otro controlador"
+                },
+                "data_description": {
+                    "refresh_period_sec": "Aunque no haya datos nuevos, se recalcula al menos con este periodo en segundos. Cada cálculo tiene un coste de CPU: no lo pongas demasiado corto",
+                    "power_consumption_entity_id": "Sensor del consumo neto (importación de red). Debe ser negativo cuando se exporta.",
+                    "power_production_entity_id": "Sensor de la producción solar.",
+                    "subscribe_to_events": "Recalcular en cuanto lleguen datos nuevos. Vigila el consumo de CPU.",
+                    "sell_cost_entity_id": "Entidad con el precio de venta actual.",
+                    "buy_cost_entity_id": "Entidad con el precio de compra actual.",
+                    "sell_tax_percent_entity_id": "Impuesto sobre la energía vendida (0 a 100)",
+                    "smooth_production": "Si se marca, el consumo neto (importación/exportación) se promedia en una ventana de tiempo para no conmutar por variaciones breves",
+                    "battery_soc_entity_id": "Carga de la batería en %. Déjalo vacío si no hay batería",
+                    "battery_charge_power_entity_id": "Potencia neta de carga de la batería en W (negativa cargando, positiva descargando). Déjalo vacío si no hay batería.",
+                    "raz_time": "Hora a la que se ponen a cero los contadores diarios y termina el modo manual. Antes de que salga el sol, pero dejando tiempo para la carga nocturna",
+                    "smoothing_window_sec": "Duración de la media móvil del consumo neto"
+                }
+            },
+            "device": {
+                "title": "Parámetros del equipo",
+                "description": "Indica los parámetros del equipo",
+                "data": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad del equipo",
+                    "power_max": "Potencia del equipo",
+                    "check_usable_template": "Plantilla de disponibilidad",
+                    "check_active_template": "Plantilla de encendido",
+                    "duration_min": "Mínimo encendido (min)",
+                    "duration_stop_min": "Mínimo apagado (min)",
+                    "action_mode": "Modo de acción",
+                    "activation_service": "Acción de encendido",
+                    "deactivation_service": "Acción de apagado",
+                    "battery_soc_threshold": "Umbral de carga de la batería",
+                    "max_on_time_per_day_min": "Máximo encendido al día",
+                    "min_on_time_per_day_min": "Mínimo encendido al día",
+                    "max_on_time_offpeak_min": "Máximo encendido en valle",
+                    "offpeak_time": "Hora de inicio del valle",
+                    "manual_detection": "Detectar cambios manuales",
+                    "manual_max_hours": "Duración máxima del modo manual (h)",
+                    "echo_window_sec": "Ventana de eco (s)",
+                    "manual_release_template": "Plantilla de fin del modo manual",
+                    "group": "Grupo",
+                    "value": "Valor de 1 kWh (€/kWh)",
+                    "measured_power_entity_id": "Potencia medida",
+                    "confirm_on_min": "Confirmación de encendido (min)",
+                    "confirm_off_min": "Confirmación de apagado (min)",
+                    "max_starts_per_hour": "Arranques máximos por hora",
+                    "shed_reaction_sec": "Reacción del deslastre (s)",
+                    "verify_after_sec": "Espera de verificación (s)",
+                    "not_absorbing_w": "Umbral de «no absorbe» (W)",
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                },
+                "data_description": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad que enciende y apaga el equipo",
+                    "power_max": "Potencia del equipo encendido. Número o plantilla",
+                    "check_usable_template": "Plantilla que dice si el equipo se puede usar (d_i). Ejemplo `True` o `states('sensor.mi_sensor') | float > 10` (entre dobles llaves)",
+                    "check_active_template": "Plantilla que dice si el equipo está encendido. Vacía para interruptores. Ejemplo `not is_state('climate.salon', 'off')` (entre dobles llaves)",
+                    "duration_min": "Tiempo mínimo encendido (T_on), en minutos",
+                    "duration_stop_min": "Tiempo mínimo apagado (T_off), en minutos",
+                    "action_mode": "Cómo se acciona el equipo: llamando a una acción o enviando un evento",
+                    "activation_service": "Acción de encendido. Ejemplo `switch/turn_on` o `climate/set_hvac_mode/hvac_mode:cool`",
+                    "deactivation_service": "Acción de apagado. Ejemplo `switch/turn_off` o `climate/set_hvac_mode/hvac_mode:off`. Vacía si el equipo se apaga solo",
+                    "battery_soc_threshold": "Carga mínima de la batería para encender el equipo. Número o plantilla",
+                    "max_on_time_per_day_min": "Tiempo máximo encendido al día, en minutos. Número o plantilla",
+                    "min_on_time_per_day_min": "Tiempo mínimo encendido al día, en minutos. Si no se alcanza con sol, se completa en valle (pasando por las guardas). 0 lo desactiva",
+                    "max_on_time_offpeak_min": "Tiempo máximo forzado en valle, en minutos. Por defecto, el máximo diario; entre el mínimo y el máximo diarios.",
+                    "offpeak_time": "Hora de inicio del valle (HH:MM). Si la configuración central tiene una entidad de valle, se usa esa",
+                    "manual_detection": "Si se marca, un cambio del equipo (o de su entidad de potencia) que no haga Solar Optimizer lo pasa a manual: no se toca hasta que termine el modo manual",
+                    "manual_max_hours": "El modo manual termina como mucho tras este tiempo, y siempre al cambio de día",
+                    "echo_window_sec": "Los cambios vistos durante este tiempo tras una orden de Solar Optimizer se consideran causados por ella",
+                    "manual_release_template": "Plantilla opcional: cuando da verdadero, termina el modo manual (p. ej. coche desenchufado)",
+                    "group": "Grupo de prioridad del equipo (1 = se atiende primero)",
+                    "value": "Lo que vale 1 kWh entregado a este equipo: entre el precio de venta y el precio de compra más barato. Valor inicial de las entidades de valor en punta y en valle",
+                    "measured_power_entity_id": "Sensor opcional con la potencia que consume de verdad el equipo (W)",
+                    "confirm_on_min": "El plan debe pedir el encendido este tiempo sin interrupción antes de encender",
+                    "confirm_off_min": "El plan debe pedir el apagado este tiempo sin interrupción antes de apagar",
+                    "max_starts_per_hour": "Arranques del equipo en cualquier ventana de 60 min",
+                    "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
+                    "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
+                    "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                }
+            },
+            "powered_device": {
+                "title": "Parámetros del equipo regulable",
+                "description": "Indica los parámetros del equipo regulable",
+                "data": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad del equipo",
+                    "power_max": "Potencia máxima",
+                    "power_min": "Potencia mínima",
+                    "power_step": "Paso de potencia",
+                    "check_usable_template": "Plantilla de disponibilidad",
+                    "check_active_template": "Plantilla de encendido",
+                    "duration_min": "Mínimo encendido (min)",
+                    "duration_stop_min": "Mínimo apagado (min)",
+                    "action_mode": "Modo de acción",
+                    "activation_service": "Acción de encendido",
+                    "deactivation_service": "Acción de apagado",
+                    "power_entity_id": "Entidad de potencia",
+                    "duration_power_min": "Intervalo entre cambios de potencia (min)",
+                    "change_power_service": "Acción de cambio de potencia",
+                    "convert_power_divide_factor": "Factor de conversión",
+                    "battery_soc_threshold": "Umbral de carga de la batería",
+                    "max_on_time_per_day_min": "Máximo encendido al día",
+                    "min_on_time_per_day_min": "Mínimo encendido al día",
+                    "max_on_time_offpeak_min": "Máximo encendido en valle",
+                    "offpeak_power": "Potencia en valle",
+                    "offpeak_time": "Hora de inicio del valle",
+                    "manual_detection": "Detectar cambios manuales",
+                    "manual_max_hours": "Duración máxima del modo manual (h)",
+                    "echo_window_sec": "Ventana de eco (s)",
+                    "manual_release_template": "Plantilla de fin del modo manual",
+                    "group": "Grupo",
+                    "value": "Valor de 1 kWh (€/kWh)",
+                    "measured_power_entity_id": "Potencia medida",
+                    "confirm_on_min": "Confirmación de encendido (min)",
+                    "confirm_off_min": "Confirmación de apagado (min)",
+                    "max_starts_per_hour": "Arranques máximos por hora",
+                    "shed_reaction_sec": "Reacción del deslastre (s)",
+                    "verify_after_sec": "Espera de verificación (s)",
+                    "not_absorbing_w": "Umbral de «no absorbe» (W)",
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                },
+                "data_description": {
+                    "name": "Nombre del equipo",
+                    "entity_id": "Entidad que enciende y apaga el equipo",
+                    "power_max": "Potencia del equipo encendido. Número o plantilla",
+                    "power_min": "Potencia mínima del equipo encendido",
+                    "power_step": "Paso de potencia del equipo",
+                    "check_usable_template": "Plantilla que dice si el equipo se puede usar (d_i). Ejemplo `True` o `states('sensor.mi_sensor') | float > 10` (entre dobles llaves)",
+                    "check_active_template": "Plantilla que dice si el equipo está encendido. Vacía para interruptores. Ejemplo `not is_state('climate.salon', 'off')` (entre dobles llaves)",
+                    "duration_min": "Tiempo mínimo encendido (T_on), en minutos",
+                    "duration_stop_min": "Tiempo mínimo apagado (T_off), en minutos",
+                    "action_mode": "Cómo se acciona el equipo: llamando a una acción o enviando un evento",
+                    "activation_service": "Acción de encendido. Ejemplo `switch/turn_on` o `climate/set_hvac_mode/hvac_mode:cool`",
+                    "deactivation_service": "Acción de apagado. Ejemplo `switch/turn_off` o `climate/set_hvac_mode/hvac_mode:off`",
+                    "power_entity_id": "Entidad que fija la potencia (number, select con opciones como «6A»…)",
+                    "duration_power_min": "Tiempo mínimo entre dos cambios de potencia, en minutos",
+                    "change_power_service": "Acción para cambiar la potencia. Ejemplo `number/set_value` o `select/select_option/option`",
+                    "convert_power_divide_factor": "Factor para pasar de W a las unidades de la entidad de potencia (W por amperio, p. ej. 232)",
+                    "battery_soc_threshold": "Carga mínima de la batería para encender el equipo. Número o plantilla",
+                    "max_on_time_per_day_min": "Tiempo máximo encendido al día, en minutos. Número o plantilla",
+                    "min_on_time_per_day_min": "Tiempo mínimo encendido al día, en minutos. Si no se alcanza con sol, se completa en valle (pasando por las guardas). 0 lo desactiva",
+                    "max_on_time_offpeak_min": "Tiempo máximo forzado en valle, en minutos. Por defecto, el máximo diario; entre el mínimo y el máximo diarios.",
+                    "offpeak_power": "Potencia de la carga forzada en valle. Por defecto, la máxima; debe encajar en el rango y el paso.",
+                    "offpeak_time": "Hora de inicio del valle (HH:MM). Si la configuración central tiene una entidad de valle, se usa esa",
+                    "manual_detection": "Si se marca, un cambio del equipo (o de su entidad de potencia) que no haga Solar Optimizer lo pasa a manual: no se toca hasta que termine el modo manual",
+                    "manual_max_hours": "El modo manual termina como mucho tras este tiempo, y siempre al cambio de día",
+                    "echo_window_sec": "Los cambios vistos durante este tiempo tras una orden de Solar Optimizer se consideran causados por ella",
+                    "manual_release_template": "Plantilla opcional: cuando da verdadero, termina el modo manual (p. ej. coche desenchufado)",
+                    "group": "Grupo de prioridad del equipo (1 = se atiende primero)",
+                    "value": "Lo que vale 1 kWh entregado a este equipo: entre el precio de venta y el precio de compra más barato. Valor inicial de las entidades de valor en punta y en valle",
+                    "measured_power_entity_id": "Sensor opcional con la potencia que consume de verdad el equipo (W)",
+                    "confirm_on_min": "El plan debe pedir el encendido este tiempo sin interrupción antes de encender",
+                    "confirm_off_min": "El plan debe pedir el apagado este tiempo sin interrupción antes de apagar",
+                    "max_starts_per_hour": "Arranques del equipo en cualquier ventana de 60 min",
+                    "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
+                    "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
+                    "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                }
+            }
+        },
+        "error": {
+            "format_time_invalid": "La hora debe tener el formato HH:MM",
+            "invalid_value": "Valor no válido o incompatible con los límites del equipo",
+            "invalid_offpeak_duration": "El máximo en valle debe estar entre el mínimo y el máximo diarios"
+        }
+    },
+    "selector": {
+        "device_type": {
+            "options": {
+                "central_config": "Configuración común",
+                "device_type": "Equipo de encendido/apagado",
+                "powered_device_type": "Equipo de potencia regulable"
+            }
+        },
+        "action_mode": {
+            "options": {
+                "action_call": "Llamada a una acción",
+                "event": "Evento"
+            }
+        },
+        "algorithm": {
+            "options": {
+                "enumeration": "Enumeración + supervisor",
+                "annealing": "Recocido simulado (original)"
+            }
+        }
+    },
+    "entity": {
+        "button": {
+            "end_manual": {
+                "name": "Volver a automático"
+            }
+        },
+        "switch": {
+            "dry_run": {
+                "name": "Modo sombra"
+            },
+            "enable": {
+                "name": "Incluido en el plan"
+            },
+            "active": {
+                "name": "Activo"
+            }
+        },
+        "sensor": {
+            "plan": {
+                "name": "Plan"
+            },
+            "surplus": {
+                "name": "Excedente filtrado"
+            },
+            "planned_import": {
+                "name": "Importación prevista"
+            },
+            "planned_export": {
+                "name": "Exportación prevista"
+            },
+            "violations": {
+                "name": "Violaciones de invariantes"
+            },
+            "status": {
+                "name": "Modo",
+                "state": {
+                    "auto": "Automático",
+                    "manual": "Manual",
+                    "faulty": "Averiado",
+                    "excluded": "Fuera del plan"
+                }
+            }
+        },
+        "number": {
+            "value_peak": {
+                "name": "Valor en punta"
+            },
+            "value_offpeak": {
+                "name": "Valor en valle"
+            },
+            "alpha": {
+                "name": "Cuota del grupo {group}"
+            }
+        }
+    }
+}
