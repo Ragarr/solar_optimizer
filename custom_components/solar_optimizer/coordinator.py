@@ -28,10 +28,12 @@ from .const import (
     name_to_unique_id,
     SOLAR_OPTIMIZER_DOMAIN,
     DEFAULT_RAZ_TIME,
+    DEFAULT_SMOOTHING_WINDOW_SEC,
     ConfigurationError,
 )
 from .managed_device import ManagedDevice
 from .simulated_annealing_algo import SimulatedAnnealingAlgorithm
+from .smoothing import TimeWindowAverage
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
         self._buy_cost_entity_id: str = None
         self._sell_tax_percent_entity_id: str = None
         self._smooth_production: bool = True
-        self._last_production: float = 0.0
+        self._consumption_filter = TimeWindowAverage(DEFAULT_SMOOTHING_WINDOW_SEC)
         self._battery_soc_entity_id: str = None
         self._battery_charge_power_entity_id: str = None
         self._raz_time: time = None
@@ -127,8 +129,11 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
         self._battery_charge_power_entity_id = config.data.get(
             "battery_charge_power_entity_id"
         )
+        # smooth_production keeps its historical name, but the smoothed signal is now the net
+        # consumption: it is the only measure the objective depends on.
         self._smooth_production = config.data.get("smooth_production") is True
-        self._last_production = 0.0
+        window = config.data.get("smoothing_window_sec")
+        self._consumption_filter = TimeWindowAverage(DEFAULT_SMOOTHING_WINDOW_SEC if window is None else float(window))
 
         self._raz_time = datetime.strptime(
             config.data.get("raz_time") or DEFAULT_RAZ_TIME, "%H:%M"
@@ -171,15 +176,14 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
         if power_consumption is None:
             _LOGGER.warning("Power consumption is not valued. Solar Optimizer will be disabled")
             return None
-        calculated_data["power_consumption"] = power_consumption
+        calculated_data["power_consumption_brut"] = power_consumption
 
-        if not self._smooth_production:
-            calculated_data["power_production"] = power_production
-        else:
-            self._last_production = round(
-                0.5 * self._last_production + 0.5 * power_production
-            )
-            calculated_data["power_production"] = self._last_production
+        if self._smooth_production:
+            now = self.now.timestamp()
+            self._consumption_filter.add(now, power_consumption)
+            power_consumption = round(self._consumption_filter.mean(now))
+        calculated_data["power_consumption"] = power_consumption
+        calculated_data["power_production"] = power_production
 
         calculated_data["power_production_brut"] = power_production
 
@@ -345,6 +349,15 @@ class SolarOptimizerCoordinator(DataUpdateCoordinator):
         if self._priority_weight_entity is None:
             return 0
         return self._priority_weight_entity.current_priority_weight
+
+    @property
+    def now(self) -> datetime:
+        """Get now. The local datetime or the overloaded _set_now date (tests)"""
+        return self._now if getattr(self, "_now", None) is not None else datetime.now()
+
+    def _set_now(self, now: datetime):
+        """Set the now timestamp. This is only for tests purpose"""
+        self._now = now
 
     @property
     def raz_time(self) -> time:

@@ -24,10 +24,11 @@
                     "sell_cost_entity_id": "Energy sell price",
                     "buy_cost_entity_id": "Energy buy price",
                     "sell_tax_percent_entity_id": "Sell taxe percent",
-                    "smooth_production": "Smooth the solar production",
+                    "smooth_production": "Smooth the net consumption",
                     "battery_soc_entity_id": "Battery state of charge",
                     "battery_charge_power_entity_id": "Battery charging power",
-                    "raz_time": "Reset counter time"
+                    "raz_time": "Reset counter time",
+                    "smoothing_window_sec": "Smoothing window (s)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Even with no new data, refresh at least in with this period in seconds. Warning heavy calculations are done at each period, so keep an eye on the CPU load. Don't refresh to often",
@@ -37,10 +38,11 @@
                     "sell_cost_entity_id": "The entity_id which holds the current energy sell price.",
                     "buy_cost_entity_id": "The entity_id which holds the current energy buy price.",
                     "sell_tax_percent_entity_id": "The energy resell tax percent (0 to 100)",
-                    "smooth_production": "If checked, the solar production will be smoothed to avoid hard variation",
+                    "smooth_production": "If checked, the net consumption (grid import/export) is averaged over a time window to avoid switching on short variations",
                     "battery_soc_entity_id": "The entity id of the battery state of charge in %. If you don't have battery, keep it empty",
                     "battery_charge_power_entity_id": "The entity id of the battery power net charging rate in watt. It should be negative if battery is charging and positive if battery is discharging. Keep it empty if no solar battery is used.",
-                    "raz_time": "Time to reset active time counters. Should be before first exposure to sunlight but not too early to allow enough time for night activation"
+                    "raz_time": "Time to reset active time counters. Should be before first exposure to sunlight but not too early to allow enough time for night activation",
+                    "smoothing_window_sec": "Length of the moving average applied to the net consumption"
                 }
             },
             "device": {
@@ -164,10 +166,11 @@
                     "sell_cost_entity_id": "Energy sell price",
                     "buy_cost_entity_id": "Energy buy price",
                     "sell_tax_percent_entity_id": "Sell taxe percent",
-                    "smooth_production": "Smooth the solar production",
+                    "smooth_production": "Smooth the net consumption",
                     "battery_soc_entity_id": "Battery state of charge",
                     "battery_charge_power_entity_id": "Battery charging power",
-                    "raz_time": "Reset counter time"
+                    "raz_time": "Reset counter time",
+                    "smoothing_window_sec": "Smoothing window (s)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Even with no new data, refresh at least in with this period in seconds. Warning heavy calculations are done at each period, so keep an eye on the CPU load. Don't refresh to often",
@@ -177,10 +180,11 @@
                     "sell_cost_entity_id": "The entity_id which holds the current energy sell price.",
                     "buy_cost_entity_id": "The entity_id which holds the current energy buy price.",
                     "sell_tax_percent_entity_id": "The energy resell tax percent (0 to 100)",
-                    "smooth_production": "If checked, the solar production will be smoothed to avoid hard variation",
+                    "smooth_production": "If checked, the net consumption (grid import/export) is averaged over a time window to avoid switching on short variations",
                     "battery_soc_entity_id": "The entity id of the battery state of charge in %. If you don't have battery, keep it empty",
                     "battery_charge_power_entity_id": "The entity id of the battery power net charging rate in watt. It should be negative if battery is charging and positive if battery is discharging. Keep it empty if no solar battery is used.",
-                    "raz_time": "Time to reset active time counters. Should be before first exposure to sunlight but not too early to allow enough time for night activation"
+                    "raz_time": "Time to reset active time counters. Should be before first exposure to sunlight but not too early to allow enough time for night activation",
+                    "smoothing_window_sec": "Length of the moving average applied to the net consumption"
                 }
             },
             "device": {

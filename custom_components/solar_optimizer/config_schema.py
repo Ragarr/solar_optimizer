@@ -54,6 +54,9 @@ central_config_schema = vol.Schema(
             selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN, INPUT_NUMBER_DOMAIN])
         ),
         vol.Optional(CONF_SMOOTH_PRODUCTION, default=True): cv.boolean,
+        vol.Optional(CONF_SMOOTHING_WINDOW_SEC, default=DEFAULT_SMOOTHING_WINDOW_SEC): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=3600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
+        ),
         vol.Optional(CONF_BATTERY_SOC_ENTITY_ID): selector.EntitySelector(
             selector.EntitySelectorConfig(domain=[SENSOR_DOMAIN, INPUT_NUMBER_DOMAIN])
         ),

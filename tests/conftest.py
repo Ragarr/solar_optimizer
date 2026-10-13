@@ -118,6 +118,10 @@ async def init_solar_optimizer_central_config(hass):
             CONF_BUY_COST_ENTITY_ID: "input_number.fake_buy_cost",
             CONF_SELL_TAX_PERCENT_ENTITY_ID: "input_number.fake_sell_tax_percent",
             CONF_SMOOTH_PRODUCTION: True,
+            # Window 0: these tests chain several readings in the same instant and check each
+            # decision against the instantaneous value (the time-window smoothing is tested in
+            # test_smoothing.py)
+            CONF_SMOOTHING_WINDOW_SEC: 0,
             CONF_BATTERY_SOC_ENTITY_ID: "sensor.fake_battery_soc",
             CONF_BATTERY_CHARGE_POWER_ENTITY_ID: "sensor.fake_battery_charge_power",
             CONF_RAZ_TIME: "05:00",

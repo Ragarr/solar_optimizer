@@ -24,10 +24,11 @@
           "sell_cost_entity_id": "Prezzo di vendita dell'energia",
           "buy_cost_entity_id": "Prezzo d'acquisto dell'energia",
           "sell_tax_percent_entity_id": "Percentuale di tasse sulla vendita",
-          "smooth_production": "Ottimizza la produzione solare",
+          "smooth_production": "Livella il consumo netto",
           "battery_soc_entity_id": "Stato di carica della batteria",
           "battery_charge_power_entity_id": "Potenza di carica della batteria",
-          "raz_time": "Orario di reset del contatore"
+          "raz_time": "Orario di reset del contatore",
+          "smoothing_window_sec": "Finestra di livellamento (s)"
         },
         "data_description": {
           "refresh_period_sec": "Anche in assenza di nuovi dati, viene eseguito un aggiornamento in base al valore impostato. Attenzione: vengono eseguiti calcoli complessi, quindi tenere sotto controllo il carico della CPU. Non aggiornare troppo spesso",
@@ -37,10 +38,11 @@
           "sell_cost_entity_id": "Entity_id che contiene l'attuale prezzo di vendita energetica.",
           "buy_cost_entity_id": "Entity_id che contiene l'attuale prezzo di acquisto dell'energia.",
           "sell_tax_percent_entity_id": "La percentuale delle imposte sulla vendita dell'energia (da 0 a 100)",
-          "smooth_production": "Se selezionato, la produzione solare verrà ottimizzata per evitare una brusca variazione",
+          "smooth_production": "Se selezionato, il consumo netto (prelievo/immissione) viene mediato su una finestra temporale per evitare commutazioni su variazioni brevi",
           "battery_soc_entity_id": "L'entity_id dello stato di carica della batteria in %. Se non è presente una batteria, lasciare vuoto",
           "battery_charge_power_entity_id": "L'entity_id della potenza di carica della batteria in watt. Deve essere negativo se la batteria si sta caricando e positivo se la batteria si sta scaricando. Lasciare vuoto se non viene utilizzata alcuna batteria.",
-          "raz_time": "Orario di reset dei contatori del tempo di attività. Dovrebbe essere prima dell'alba, ma non troppo presto, in modo da lasciare tempo sufficiente per l'attivazione notturna"
+          "raz_time": "Orario di reset dei contatori del tempo di attività. Dovrebbe essere prima dell'alba, ma non troppo presto, in modo da lasciare tempo sufficiente per l'attivazione notturna",
+          "smoothing_window_sec": "Durata della media mobile applicata al consumo netto"
         }
       },
       "device": {
@@ -164,10 +166,11 @@
           "sell_cost_entity_id": "Prezzo di vendita di energia",
           "buy_cost_entity_id": "Energia Acquista prezzo",
           "sell_tax_percent_entity_id": "Vendi la percentuale di taxe",
-          "smooth_production": "Leviga la produzione solare",
+          "smooth_production": "Livella il consumo netto",
           "battery_soc_entity_id": "Stato di carica della batteria",
           "battery_charge_power_entity_id": "Potenza di ricarica della batteria",
-          "raz_time": "Ripristina il contatore"
+          "raz_time": "Ripristina il contatore",
+          "smoothing_window_sec": "Finestra di livellamento (s)"
         },
         "data_description": {
           "refresh_period_sec": "Periodo di aggiornamento in secondi, anche in assenza di nuovi dati. Attenzione: vengono effettuati calcoli complessi che influiscono sul carico della CPU, non aggiornare troppo spesso",
@@ -177,10 +180,11 @@
           "sell_cost_entity_id": "Entity_id che detiene l'attuale prezzo di vendita energetica.",
           "buy_cost_entity_id": "Entity_id che detiene l'attuale prezzo di acquisto dell'energia.",
           "sell_tax_percent_entity_id": "La percentuale dell'imposta di rivendita dell'energia (da 0 a 100)",
-          "smooth_production": "Se controllato, la produzione solare verrà levigata per evitare una dura variazione",
+          "smooth_production": "Se selezionato, il consumo netto (prelievo/immissione) viene mediato su una finestra temporale per evitare commutazioni su variazioni brevi",
           "battery_soc_entity_id": "Entity_id dello stato di carica della batteria in %. Se non si dispone di una batteria, lasciare il campo vuoto",
           "battery_charge_power_entity_id": "L'entity_id che misura la potenza istantanea da/verso la batteria. Deve essere espresso in watt e deve essere positivo se la batteria si scarica e negativo se si carica. Lasciare vuoto se non si dispone di una batteria solare.",
-          "raz_time": "Tempo per ripristinare i contatori del tempo attivo"
+          "raz_time": "Tempo per ripristinare i contatori del tempo attivo",
+          "smoothing_window_sec": "Durata della media mobile applicata al consumo netto"
         }
       },
       "device": {

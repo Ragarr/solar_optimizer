@@ -24,10 +24,11 @@
                     "sell_cost_entity_id": "Prix de vente de l'énergie",
                     "buy_cost_entity_id": "Prix d'achat de l'énergie",
                     "sell_tax_percent_entity_id": "Pourcentage de taxe de revente",
-                    "smooth_production": "Lisser la production solaire",
+                    "smooth_production": "Lisser la consommation nette",
                     "battery_soc_entity_id": "Etat de charge de la batterie",
                     "battery_charge_power_entity_id": "Puissance de charge nette de la batterie",
-                    "raz_time": "Heure de remise à zéro"
+                    "raz_time": "Heure de remise à zéro",
+                    "smoothing_window_sec": "Fenêtre de lissage (s)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Période de rafraichissement en secondes. Attention des calculs lourds sont effectués à chaque période. Ne pas rafraichir trop souvent",
@@ -37,10 +38,11 @@
                     "sell_cost_entity_id": "L'entity_id qui contient le prix actuel de vente de l'énergie.",
                     "buy_cost_entity_id": "L'entity_id qui contient le prix actuel d'achat de l'énergie.",
                     "sell_tax_percent_entity_id": "Le pourcentage de taxe de revente de l'énergie (0 à 100)",
-                    "smooth_production": "Si coché, la production solaire sera lissée pour éviter les variations brutales",
+                    "smooth_production": "Si coché, la consommation nette (import/export réseau) est moyennée sur une fenêtre de temps pour éviter les commutations sur des variations brèves",
                     "battery_soc_entity_id": "Etat de charge de la batterie en %. Si vous n'avez pas de batterie, laissez vide",
                     "battery_charge_power_entity_id": "L'entity_id qui mesure la charger nette de la batterie instantanée. Doit-être exprimé en watts, être positif si la batterie se décharge et négatif si la batterie charge. Laissez vide si vous n'avez pas de batterie solaire.",
-                    "raz_time": "Heure de remise à zéro des compteurs de temps passés. Devrait être avant la première exposition au soleil mais pas trop tôt pour laisser du temps à l'activation de nuit"
+                    "raz_time": "Heure de remise à zéro des compteurs de temps passés. Devrait être avant la première exposition au soleil mais pas trop tôt pour laisser du temps à l'activation de nuit",
+                    "smoothing_window_sec": "Durée de la moyenne glissante appliquée à la consommation nette"
                 }
             },
             "device": {
@@ -164,10 +166,11 @@
                     "sell_cost_entity_id": "Prix de vente de l'énergie",
                     "buy_cost_entity_id": "Prix d'achat de l'énergie",
                     "sell_tax_percent_entity_id": "Pourcentage de taxe de revente",
-                    "smooth_production": "Lisser la production solaire",
+                    "smooth_production": "Lisser la consommation nette",
                     "battery_soc_entity_id": "Etat de charge de la batterie",
                     "battery_charge_power_entity_id": "Puissance de charge nette de la batterie",
-                    "raz_time": "Heure de remise à zéro"
+                    "raz_time": "Heure de remise à zéro",
+                    "smoothing_window_sec": "Fenêtre de lissage (s)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Période de rafraichissement en secondes. Attention des calculs lourds sont effectués à chaque période. Ne pas rafraichir trop souvent",
@@ -177,10 +180,11 @@
                     "sell_cost_entity_id": "L'entity_id qui contient le prix actuel de vente de l'énergie.",
                     "buy_cost_entity_id": "L'entity_id qui contient le prix actuel d'achat de l'énergie.",
                     "sell_tax_percent_entity_id": "Le pourcentage de taxe de revente de l'énergie (0 à 100)",
-                    "smooth_production": "Si coché, la production solaire sera lissée pour éviter les variations brutales",
+                    "smooth_production": "Si coché, la consommation nette (import/export réseau) est moyennée sur une fenêtre de temps pour éviter les commutations sur des variations brèves",
                     "battery_soc_entity_id": "Etat de charge de la batterie en %. Si vous n'avez pas de batterie, laissez vide",
                     "battery_charge_power_entity_id": "L'entity_id qui mesure la charger nette de la batterie instantanée. Doit-être exprimé en watts, être positif si la batterie se décharge et négatif si la batterie charge. Laissez vide si vous n'avez pas de batterie solaire.",
-                    "raz_time": "Heure de remise à zéro des compteurs de temps passés. Devrait être avant la première exposition au soleil mais pas trop tôt pour laisser du temps à l'activation de nuit"
+                    "raz_time": "Heure de remise à zéro des compteurs de temps passés. Devrait être avant la première exposition au soleil mais pas trop tôt pour laisser du temps à l'activation de nuit",
+                    "smoothing_window_sec": "Durée de la moyenne glissante appliquée à la consommation nette"
                 }
             },
             "device": {
