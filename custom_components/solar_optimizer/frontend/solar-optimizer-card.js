@@ -596,6 +596,8 @@ class SolarOptimizerCard extends HTMLElement {
     // Récupérer la liste des switch (les Managed Devices) de solar_optimizer
     const devicesSwitches = Object.keys(this._hass.states).filter(key =>
       key.startsWith("switch.solar_optimizer_") && !key.startsWith("switch.solar_optimizer_enable_")
+      // only the device switches (not the central dry run switch)
+      && this._hass.states[key].attributes.device_name !== undefined
     );
 
     // État global : tous pliés ?
