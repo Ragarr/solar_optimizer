@@ -642,7 +642,7 @@ Behavior:
 - The device is physically turned on.
 - The status badge switches to **MANUAL**.
 - A timer is started and persisted: if HA restarts, the timer resumes with the remaining duration.
-- When the timer expires, the device is turned off and SO regains control (`enable = true`).
+- When the timer expires, SO regains control (`enable = true`) without sending any command: the device stays as it is and the algorithm decides in the next cycles.
 
 | Parameter   | Required | Description                                                                     |
 | ----------- | -------- | ------------------------------------------------------------------------------- |

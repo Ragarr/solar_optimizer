@@ -337,13 +337,15 @@ class ManagedDevice:
 
     async def expire_forced_activation(self) -> bool:
         """Called periodically to check if the forced timer has expired.
-        If so, deactivates the device and re-enables SO management.
-        Returns True if the timer expired and the device was stopped."""
+        If so, gives the device back to SO management without sending any command: the device
+        stays as it is and the algorithm decides in the next cycles (with the usual minimal
+        durations). Stopping it here would switch off a device the algorithm may want on, and
+        would bypass the anti short-cycle protections.
+        Returns True if the timer expired."""
         if self._forced_end_time is None or self.now < self._forced_end_time:
             return False
-        _LOGGER.info("%s - Forced activation timer expired, stopping and re-enabling SO management", self.name)
+        _LOGGER.info("%s - Forced activation timer expired, re-enabling SO management (no command sent)", self.name)
         self._forced_end_time = None
-        await self.deactivate()
         self.set_enable(True)
         return True
 
