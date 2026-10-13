@@ -93,6 +93,12 @@ The operation is as follows:
 
 The algorithm used is a simulated annealing type algorithm, a description of which you will find here: https://fr.wikipedia.org/wiki/Recuit_simul%C3%A9
 
+
+> **Enumeration optimiser and supervisor**: an exact economic optimisation (enumeration per group +
+> water-filling) with a supervisor that protects the devices (minimal times, confirmations, load
+> shedding on the contracted power, invariants, manual changes, dry run). See
+> [documentation/enumeration-supervisor.md](documentation/enumeration-supervisor.md).
+
 ## Anti-flickering
 To avoid the effects of flickering from one cycle to another, a minimum activation delay can be configured by equipment: `duration_min`. For example: a water heater must be activated for at least one hour for the ignition to be useful, charging an electric car must last at least two hours, ...
 Similarly, a minimum stop duration can be specified in the `duration_stop_min` parameter.
