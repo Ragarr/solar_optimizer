@@ -614,7 +614,7 @@ Comportement :
 - L'équipement est physiquement allumé.
 - Le badge de statut passe à **MANUEL**.
 - Un timer est démarré et persisté : si HA redémarre, le timer reprend avec la durée restante.
-- À l'expiration du timer, l'équipement est éteint et SO reprend le contrôle (`enable = true`).
+- À l'expiration du timer, SO reprend le contrôle (`enable = true`) sans envoyer de commande : l'équipement reste dans son état et l'algorithme décide aux cycles suivants.
 
 | Paramètre   | Obligatoire | Description                                                                                   |
 | ----------- | ----------- | --------------------------------------------------------------------------------------------- |

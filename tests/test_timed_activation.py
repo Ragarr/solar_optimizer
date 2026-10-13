@@ -169,7 +169,8 @@ async def test_expire_forced_activation_not_yet(
 async def test_expire_forced_activation_expired(
     hass: HomeAssistant, init_solar_optimizer_central_config
 ):
-    """expire_forced_activation désactive + re-enable SO quand le timer est expiré."""
+    """expire_forced_activation re-enable SO sans envoyer de commande quand le timer est expiré
+    (changed on purpose: the device is no longer switched off at expiry)."""
     device, _ = await _setup_device(hass)
 
     device.activate = AsyncMock()
@@ -186,7 +187,7 @@ async def test_expire_forced_activation_expired(
     assert expired is True
     assert device.forced_end_time is None
     assert device.is_enabled is True
-    device.deactivate.assert_awaited_once()
+    device.deactivate.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -237,7 +238,8 @@ async def test_set_forced_end_time_restore_future(
 async def test_set_forced_end_time_restore_past(
     hass: HomeAssistant, init_solar_optimizer_central_config
 ):
-    """set_forced_end_time avec une date passée : expire_forced_activation doit s'arrêter."""
+    """set_forced_end_time avec une date passée : expire_forced_activation rend la main à SO sans
+    commande (changed on purpose: the device is no longer switched off at expiry)."""
     device, _ = await _setup_device(hass)
 
     current_tz = get_tz(hass)
@@ -252,7 +254,7 @@ async def test_set_forced_end_time_restore_past(
     assert expired is True
     assert device.forced_end_time is None
     assert device.is_enabled is True
-    device.deactivate.assert_awaited_once()
+    device.deactivate.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

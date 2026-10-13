@@ -14,7 +14,7 @@ start_device:
     description: >
         Force the activation of a managed device for a given duration.
         Sets enable=false, turns the device on, and optionally starts a countdown timer.
-        When the timer expires, the device is stopped and SO management is re-enabled automatically.
+        When the timer expires, SO management is re-enabled automatically without sending any command (the device is not stopped).
     fields:
         device_id:
             name: Device ID
