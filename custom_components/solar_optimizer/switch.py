@@ -151,7 +151,7 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             try:
                 end_time = datetime.fromisoformat(last_state.attributes["manual_end_time"])
                 if end_time > datetime.now(get_tz(self._hass)):
-                    self._device.set_manual_end_time(end_time)
+                    self._device.set_manual_end_time(end_time, bool(last_state.attributes.get("manual_started_on")))
                     _LOGGER.info("Restored manual_end_time=%s for %s", end_time, self._device.name)
             except (ValueError, TypeError) as err:
                 _LOGGER.warning("Could not restore manual_end_time for %s: %s", self._device.name, err)
@@ -275,6 +275,7 @@ class ManagedDeviceSwitch(CoordinatorEntity, SwitchEntity, RestoreEntity):
             "supervisor": self.coordinator.runtime.device_state(device.name) if self.coordinator else None,
             "is_manual": device.is_manual,
             "manual_end_time": device.manual_end_time.astimezone(current_tz).isoformat() if device.manual_end_time else None,
+            "manual_started_on": device.manual_started_on,
         }
 
     @callback

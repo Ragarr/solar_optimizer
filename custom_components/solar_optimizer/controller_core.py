@@ -92,6 +92,7 @@ class ControllerParams:
     smoothing_window: float = 120.0
     discard_after_command: float = 25.0
     frozen_production_kw: float = 0.05  # "with sun": production above this
+    hysteresis: float = 0.0  # €/h: keep the current plan unless the best one is worth more than this
 
 
 class Controller:
@@ -310,7 +311,7 @@ class Controller:
         for gid in sorted({c.group for c in consumers} | set(inp.alphas)):
             groups.append(Group(gid, inp.alphas.get(gid, 0.0), inp.caps.get(gid)))
 
-        plan = water_fill(consumers, groups, surplus, margin, inp.price_import, inp.price_export)
+        plan = water_fill(consumers, groups, surplus, margin, inp.price_import, inp.price_export, hysteresis=self.cp.hysteresis)
         out.plan = plan
         self.g.last_plan = now
 

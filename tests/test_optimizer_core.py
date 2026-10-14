@@ -163,3 +163,19 @@ def test_real_charger_steps():
     assert plan.levels["car"] == pytest.approx(2.32)
     assert n_acs(plan) == 1
     assert plan.imported == pytest.approx(0.12)
+
+
+def test_hysteresis_keeps_current_plan_for_small_gains():
+    """With hysteresis, the current plan is kept unless the best one is worth more than it"""
+    car = Consumer("car", 1, CAR_LEVELS, 0.13, current=round(0.232 * 8, 3))
+    # 2.1 kW of surplus at peak: 9 A (2.088) is best, 8 A (1.856) is current
+    best = solve_group([car], 2.1, H, PEAK, SELL)
+    assert best.plan["car"] == pytest.approx(2.088)
+    kept = solve_group([car], 2.1, H, PEAK, SELL, hysteresis=0.04)
+    assert kept.plan["car"] == pytest.approx(1.856)
+    # a large gain still changes the plan
+    moved = solve_group([car], 3.5, H, PEAK, SELL, hysteresis=0.04)
+    assert moved.plan["car"] > 3.0
+    # an infeasible current plan (over the import margin) is never kept
+    over = Consumer("car", 1, CAR_LEVELS, 0.13, current=round(0.232 * 16, 3))
+    assert solve_group([over], 0.0, 0.5, PEAK, SELL, hysteresis=10).plan["car"] == 0

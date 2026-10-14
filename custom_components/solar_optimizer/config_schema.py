@@ -92,6 +92,9 @@ central_config_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_FOREIGN_USER_IDS): str,
+        vol.Optional(CONF_HYSTERESIS, default=0.0): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0, max=1, step=0.005, unit_of_measurement="€/h", mode=selector.NumberSelectorMode.BOX)
+        ),
     }
 )
 
@@ -131,6 +134,7 @@ managed_device_schema = vol.Schema(
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
         vol.Optional(CONF_MANUAL_END_AT_RESET, default=True): cv.boolean,
+        vol.Optional(CONF_MANUAL_END_WHEN_OFF, default=False): cv.boolean,
         vol.Optional(CONF_GROUP, default=1): selector.NumberSelector(
             selector.NumberSelectorConfig(min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX)
         ),
@@ -213,6 +217,7 @@ power_managed_device_schema = vol.Schema(
         vol.Optional(CONF_MAX_ON_TIME_OFFPEAK_MIN): str,
         vol.Optional(CONF_OFFPEAK_TIME): str,
         vol.Optional(CONF_OFFPEAK_POWER): str,
+        vol.Optional(CONF_LEVEL_POWER_MAP): str,
         vol.Optional(CONF_MANUAL_DETECTION, default=False): cv.boolean,
         vol.Optional(CONF_MANUAL_MAX_HOURS, default=DEFAULT_MANUAL_MAX_HOURS): selector.NumberSelector(
             selector.NumberSelectorConfig(min=0.1, max=48, step=0.1, unit_of_measurement="h", mode=selector.NumberSelectorMode.BOX)
@@ -222,6 +227,7 @@ power_managed_device_schema = vol.Schema(
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
         vol.Optional(CONF_MANUAL_END_AT_RESET, default=True): cv.boolean,
+        vol.Optional(CONF_MANUAL_END_WHEN_OFF, default=False): cv.boolean,
         vol.Optional(CONF_GROUP, default=1): selector.NumberSelector(
             selector.NumberSelectorConfig(min=1, max=5, step=1, mode=selector.NumberSelectorMode.BOX)
         ),

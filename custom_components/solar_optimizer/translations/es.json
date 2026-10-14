@@ -39,7 +39,8 @@
                     "start_separation_sec": "Separación entre dos arranques (s)",
                     "warmup_sec": "Espera tras un reinicio (s)",
                     "discard_after_command_sec": "Medidas descartadas tras una orden (s)",
-                    "foreign_user_ids": "Usuarios de otro controlador"
+                    "foreign_user_ids": "Usuarios de otro controlador",
+                    "hysteresis_eur_h": "Histéresis (€/h)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Aunque no haya datos nuevos, se recalcula al menos con este periodo en segundos. Cada cálculo tiene un coste de CPU: no lo pongas demasiado corto",
@@ -64,7 +65,8 @@
                     "start_separation_sec": "Dos arranques de cualesquiera equipos se separan al menos esto",
                     "warmup_sec": "Tras un reinicio no se ordena nada hasta tener este tiempo de medidas válidas (salvo el deslastre)",
                     "discard_after_command_sec": "Las muestras del excedente justo después de una orden no se promedian (las medidas aún se mueven)",
-                    "foreign_user_ids": "Ids de usuario separados por comas: sus cambios se registran pero no cuentan como manuales (útil en dry run junto a otro controlador)"
+                    "foreign_user_ids": "Ids de usuario separados por comas: sus cambios se registran pero no cuentan como manuales (útil en dry run junto a otro controlador)",
+                    "hysteresis_eur_h": "Se mantiene el plan actual salvo que el mejor valga más que esto (evita cambios de nivel por ganancias mínimas)"
                 }
             },
             "device": {
@@ -100,7 +102,8 @@
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
                     "manual_ignore_template": "Plantilla de cambios propios del equipo",
-                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día",
+                    "manual_end_when_off": "Terminar el manual al apagarlo"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -132,7 +135,8 @@
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
                     "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
-                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)",
+                    "manual_end_when_off": "Si se marca, un equipo encendido a mano vuelve a automático cuando lleva 60 s apagado"
                 }
             },
             "powered_device": {
@@ -175,7 +179,9 @@
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
                     "manual_ignore_template": "Plantilla de cambios propios del equipo",
-                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día",
+                    "manual_end_when_off": "Terminar el manual al apagarlo",
+                    "level_power_map": "Potencia medida por ajuste"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -214,7 +220,9 @@
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
                     "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
-                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)",
+                    "manual_end_when_off": "Si se marca, un equipo encendido a mano vuelve a automático cuando lleva 60 s apagado",
+                    "level_power_map": "Opcional, p. ej. 6:1387, 8:1732: lo que consume de verdad en cada ajuste de la entidad de potencia (W)"
                 }
             }
         },
@@ -263,7 +271,8 @@
                     "start_separation_sec": "Separación entre dos arranques (s)",
                     "warmup_sec": "Espera tras un reinicio (s)",
                     "discard_after_command_sec": "Medidas descartadas tras una orden (s)",
-                    "foreign_user_ids": "Usuarios de otro controlador"
+                    "foreign_user_ids": "Usuarios de otro controlador",
+                    "hysteresis_eur_h": "Histéresis (€/h)"
                 },
                 "data_description": {
                     "refresh_period_sec": "Aunque no haya datos nuevos, se recalcula al menos con este periodo en segundos. Cada cálculo tiene un coste de CPU: no lo pongas demasiado corto",
@@ -313,7 +322,8 @@
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
                     "manual_ignore_template": "Plantilla de cambios propios del equipo",
-                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día",
+                    "manual_end_when_off": "Terminar el manual al apagarlo"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -345,7 +355,8 @@
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
                     "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
-                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)",
+                    "manual_end_when_off": "Si se marca, un equipo encendido a mano vuelve a automático cuando lleva 60 s apagado"
                 }
             },
             "powered_device": {
@@ -388,7 +399,9 @@
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
                     "manual_ignore_template": "Plantilla de cambios propios del equipo",
-                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día",
+                    "manual_end_when_off": "Terminar el manual al apagarlo",
+                    "level_power_map": "Potencia medida por ajuste"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -427,7 +440,8 @@
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
                     "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
-                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)",
+                    "manual_end_when_off": "Si se marca, un equipo encendido a mano vuelve a automático cuando lleva 60 s apagado"
                 }
             }
         },
