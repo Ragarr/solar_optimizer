@@ -295,9 +295,26 @@ class SupervisorRuntime:
         for d in self.coordinator.devices:
             st = controller.states.get(d.name) if controller else None
             status = out.status.get(d.name)
-            mode = "excluded" if not d.is_enabled else "manual" if d.is_manual else "faulty" if st is not None and st.faulty else "auto"
+            if not d.is_enabled:
+                mode = "excluded"
+            elif not d.is_reachable:
+                mode = "offline"
+            elif d.is_manual:
+                mode = "manual"
+            elif st is not None and st.faulty:
+                mode = "faulty"
+            else:
+                mode = "auto"
+            measured = d.measured_w()
+            on = bool(st.on) if st is not None else bool(d.is_active)
+            power_w = measured if measured is not None else (st.level * 1000 if st is not None and on else 0.0)
+            start_at = status.start_at if status else None
+            stop_at = status.stop_at if status else None
             devices[d.name] = {
                 "mode": mode,
+                "is_on": on,
+                "power_w": round(power_w),
+                "waiting": bool((not on and start_at is not None and start_at > inputs.now) or (on and stop_at is not None and stop_at > inputs.now)),
                 "manual_end_time": d.manual_end_time.isoformat() if d.manual_end_time else None,
                 "group": d.group,
                 "value": d.value(inputs.offpeak),

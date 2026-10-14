@@ -98,6 +98,8 @@ async def async_setup_entry(
     entities = [entity1]
     if configured_algorithm(hass) == ALGORITHM_ENUMERATION or entry.data.get(CONF_MANUAL_DETECTION):
         entities.append(DeviceStatusSensor(coordinator, device))
+    if configured_algorithm(hass) == ALGORITHM_ENUMERATION:
+        entities += [DevicePowerSensor(coordinator, device, "power"), DevicePowerSensor(coordinator, device, "planned")]
     async_add_entities(entities, False)
 
     # Add services
@@ -581,7 +583,7 @@ class DeviceStatusSensor(CoordinatorEntity, SensorEntity):
 
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["auto", "manual", "faulty", "excluded"]
+    _attr_options = ["auto", "manual", "faulty", "excluded", "offline"]
     _attr_icon = "mdi:robot"
 
     def __init__(self, coordinator, device):
@@ -611,4 +613,43 @@ class DeviceStatusSensor(CoordinatorEntity, SensorEntity):
             data = {"mode": mode, "manual_end_time": self._device.manual_end_time.isoformat() if self._device.manual_end_time else None}
         self._attr_native_value = data["mode"]
         self._attr_extra_state_attributes = {k: v for k, v in data.items() if k != "mode"}
+        self.async_write_ha_state()
+
+
+class DevicePowerSensor(CoordinatorEntity, SensorEntity):
+    """Power of a device (W): "power" = drawn now (measured, else its level when on),
+    "planned" = asked by the plan"""
+
+    _attr_has_entity_name = True
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device, kind: str):
+        idx = name_to_unique_id(device.name)
+        super().__init__(coordinator, context=f"{kind}_{idx}")
+        self._device = device
+        self._key = "power_w" if kind == "power" else "planned_w"
+        self.entity_id = f"sensor.solar_optimizer_{kind}_{idx}"
+        self._attr_unique_id = f"solar_optimizer_{kind}_{idx}"
+        self._attr_translation_key = f"device_{kind}"
+        self._attr_name = "Power" if kind == "power" else "Planned power"
+        self._attr_icon = "mdi:flash" if kind == "power" else "mdi:flash-outline"
+
+    @property
+    def device_info(self):
+        return DeviceInfo(
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, self._device.name)},
+            name="Solar Optimizer-" + self._device.name,
+            manufacturer=DEVICE_MANUFACTURER,
+            model=DEVICE_MODEL,
+        )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = ((self.coordinator.data or {}).get("devices") or {}).get(self._device.name)
+        if data is None:
+            return
+        self._attr_native_value = data.get(self._key)
         self.async_write_ha_state()

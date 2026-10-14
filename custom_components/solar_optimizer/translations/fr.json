@@ -491,8 +491,15 @@
                     "auto": "Automatic",
                     "manual": "Manual",
                     "faulty": "Faulty",
-                    "excluded": "Not included"
+                    "excluded": "Not included",
+                    "offline": "Offline"
                 }
+            },
+            "device_power": {
+                "name": "Power"
+            },
+            "device_planned": {
+                "name": "Planned power"
             }
         },
         "number": {
