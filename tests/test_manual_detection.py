@@ -235,3 +235,14 @@ async def test_manual_end_time_is_restored(hass: HomeAssistant, init_solar_optim
     device = await _setup(hass, restore={"manual_end_time": end.isoformat()})
     assert device.is_manual
     assert device.manual_end_time == end
+
+
+async def test_manual_not_ended_at_reset_when_disabled(hass: HomeAssistant, init_solar_optimizer_central_config):
+    """With manual_end_at_reset off, a device switched on by hand at night stays manual after the
+    daily reset (only the maximal duration applies)"""
+    device = await _setup(hass, {**DEVICE_DATA, CONF_MANUAL_END_AT_RESET: False})
+    device._set_now(_at(hass, 2))
+    await _set(hass, ENTITY, "on", USER)
+    assert device.manual_end_time == _at(hass, 14)  # 2:00 + 12 h, not 5:00
+    device._set_now(_at(hass, 5, 1))
+    assert device.check_manual_expiry() is False and device.is_manual

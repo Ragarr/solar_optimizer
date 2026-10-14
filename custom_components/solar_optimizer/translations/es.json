@@ -99,7 +99,8 @@
                     "shed_reaction_sec": "Reacción del deslastre (s)",
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
-                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo",
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -130,7 +131,8 @@
                     "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
-                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
                 }
             },
             "powered_device": {
@@ -172,7 +174,8 @@
                     "shed_reaction_sec": "Reacción del deslastre (s)",
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
-                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo",
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -210,7 +213,8 @@
                     "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
-                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
                 }
             }
         },
@@ -308,7 +312,8 @@
                     "shed_reaction_sec": "Reacción del deslastre (s)",
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
-                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo",
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -339,7 +344,8 @@
                     "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
-                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
                 }
             },
             "powered_device": {
@@ -381,7 +387,8 @@
                     "shed_reaction_sec": "Reacción del deslastre (s)",
                     "verify_after_sec": "Espera de verificación (s)",
                     "not_absorbing_w": "Umbral de «no absorbe» (W)",
-                    "manual_ignore_template": "Plantilla de cambios propios del equipo"
+                    "manual_ignore_template": "Plantilla de cambios propios del equipo",
+                    "manual_end_at_reset": "Terminar el modo manual al cambio de día"
                 },
                 "data_description": {
                     "name": "Nombre del equipo",
@@ -419,7 +426,8 @@
                     "shed_reaction_sec": "Espera tras deslastrar este equipo antes del siguiente paso",
                     "verify_after_sec": "El estado se comprueba este tiempo después de cada orden; hasta 3 reintentos y después el equipo queda como averiado",
                     "not_absorbing_w": "Opcional: encendido con consigna pero consumiendo menos de esto durante 2,5 min → fuera del plan 30 min (p. ej. coche lleno)",
-                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)"
+                    "manual_ignore_template": "Plantilla opcional: los cambios vistos mientras da verdadero los hace el propio equipo, no son manuales (p. ej. un cargador que arranca al enchufar)",
+                    "manual_end_at_reset": "Si se desmarca, el modo manual solo termina por la duración máxima, la plantilla de fin o el botón «Volver a automático» (p. ej. un aire encendido de noche no se apaga a la hora del cambio de día)"
                 }
             }
         },
