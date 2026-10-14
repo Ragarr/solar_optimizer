@@ -65,7 +65,8 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "manual_end_at_reset": "End the manual mode at the daily reset"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -86,7 +87,8 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
         }
       },
       "powered_device": {
@@ -118,7 +120,8 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "manual_end_at_reset": "End the manual mode at the daily reset"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -146,7 +149,8 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
         }
       }
     },
@@ -221,7 +225,8 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "manual_end_at_reset": "End the manual mode at the daily reset"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -242,7 +247,8 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
         }
       },
       "powered_device": {
@@ -274,7 +280,8 @@
           "manual_detection": "Detect manual changes",
           "manual_max_hours": "Maximal manual duration (h)",
           "echo_window_sec": "Echo window (s)",
-          "manual_release_template": "Manual release template"
+          "manual_release_template": "Manual release template",
+          "manual_end_at_reset": "End the manual mode at the daily reset"
         },
         "data_description": {
           "name": "Il nome del dispositivo",
@@ -302,7 +309,8 @@
           "manual_detection": "If checked, a change of the device (or of its power entity) not made by Solar Optimizer puts the device in manual mode: Solar Optimizer leaves it alone until the manual mode ends",
           "manual_max_hours": "The manual mode ends at the latest after this time, and always at the daily reset time",
           "echo_window_sec": "Changes seen during this time after a Solar Optimizer command are considered caused by it",
-          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)"
+          "manual_release_template": "Optional template: when it renders true the manual mode ends (e.g. car unplugged)",
+          "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
         }
       }
     },

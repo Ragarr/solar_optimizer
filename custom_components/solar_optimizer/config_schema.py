@@ -99,6 +99,7 @@ managed_device_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
+        vol.Optional(CONF_MANUAL_END_AT_RESET, default=True): cv.boolean,
     }
 )
 
@@ -162,5 +163,6 @@ power_managed_device_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_MANUAL_RELEASE_TEMPLATE): str,
+        vol.Optional(CONF_MANUAL_END_AT_RESET, default=True): cv.boolean,
     }
 )

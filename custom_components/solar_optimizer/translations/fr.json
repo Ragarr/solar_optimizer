@@ -65,7 +65,8 @@
                     "manual_detection": "Détecter les changements manuels",
                     "manual_max_hours": "Durée maximale du mode manuel (h)",
                     "echo_window_sec": "Fenêtre d'écho (s)",
-                    "manual_release_template": "Template de fin du mode manuel"
+                    "manual_release_template": "Template de fin du mode manuel",
+                    "manual_end_at_reset": "Fin du mode manuel à la remise à zéro"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -86,7 +87,8 @@
                     "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
                     "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
                     "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
-                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)",
+                    "manual_end_at_reset": "Si décoché, le mode manuel ne se termine qu'avec la durée maximale, le template de fin ou le bouton de retour en automatique"
                 }
             },
             "powered_device": {
@@ -118,7 +120,8 @@
                     "manual_detection": "Détecter les changements manuels",
                     "manual_max_hours": "Durée maximale du mode manuel (h)",
                     "echo_window_sec": "Fenêtre d'écho (s)",
-                    "manual_release_template": "Template de fin du mode manuel"
+                    "manual_release_template": "Template de fin du mode manuel",
+                    "manual_end_at_reset": "Fin du mode manuel à la remise à zéro"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -146,7 +149,8 @@
                     "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
                     "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
                     "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
-                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)",
+                    "manual_end_at_reset": "Si décoché, le mode manuel ne se termine qu'avec la durée maximale, le template de fin ou le bouton de retour en automatique"
                 }
             }
         },
@@ -221,7 +225,8 @@
                     "manual_detection": "Détecter les changements manuels",
                     "manual_max_hours": "Durée maximale du mode manuel (h)",
                     "echo_window_sec": "Fenêtre d'écho (s)",
-                    "manual_release_template": "Template de fin du mode manuel"
+                    "manual_release_template": "Template de fin du mode manuel",
+                    "manual_end_at_reset": "Fin du mode manuel à la remise à zéro"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -242,7 +247,8 @@
                     "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
                     "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
                     "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
-                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)",
+                    "manual_end_at_reset": "Si décoché, le mode manuel ne se termine qu'avec la durée maximale, le template de fin ou le bouton de retour en automatique"
                 }
             },
             "powered_device": {
@@ -274,7 +280,8 @@
                     "manual_detection": "Détecter les changements manuels",
                     "manual_max_hours": "Durée maximale du mode manuel (h)",
                     "echo_window_sec": "Fenêtre d'écho (s)",
-                    "manual_release_template": "Template de fin du mode manuel"
+                    "manual_release_template": "Template de fin du mode manuel",
+                    "manual_end_at_reset": "Fin du mode manuel à la remise à zéro"
                 },
                 "data_description": {
                     "name": "Nom de l'équipement",
@@ -302,7 +309,8 @@
                     "manual_detection": "Si coché, un changement de l'équipement (ou de son entité de puissance) qui ne vient pas de Solar Optimizer passe l'équipement en mode manuel : Solar Optimizer ne le touche plus jusqu'à la fin du mode manuel",
                     "manual_max_hours": "Le mode manuel se termine au plus tard après cette durée, et toujours à l'heure de remise à zéro",
                     "echo_window_sec": "Les changements vus pendant ce temps après une commande de Solar Optimizer sont considérés comme causés par elle",
-                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)"
+                    "manual_release_template": "Template optionnel : quand il vaut vrai, le mode manuel se termine (ex. voiture débranchée)",
+                    "manual_end_at_reset": "Si décoché, le mode manuel ne se termine qu'avec la durée maximale, le template de fin ou le bouton de retour en automatique"
                 }
             }
         },
