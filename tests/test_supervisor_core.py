@@ -328,3 +328,52 @@ def test_flicker_within_echo_window_is_ignored():
     house.on["ac1"] = False  # flicker
     ctrl.observe(house.inputs(T0 + 40), __import__("custom_components.solar_optimizer.controller_core", fromlist=["Output"]).Output())
     assert st.on and st.t_off is None and st.starts == [T0 + 30]
+
+
+# ---------------------------------------------------------------------- held by the charge planner
+
+
+def test_held_car_is_not_counted_and_follows_the_planner():
+    """Held car: its power stays in R (the surplus for the ACs does not include it), the
+    supervisor drives it to the planner's level after the confirmations, the optimiser does not
+    plan it"""
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=3.0)
+    house.inputs_extra["car"] = {"held_level": 13 * 0.232}
+    out = house.run(T0, T0 + 600)
+    assert house.on["car"] and house.car_level == pytest.approx(13 * 0.232)
+    assert out.status["car"].held and not out.status["car"].controllable
+    assert "car" not in out.plan.levels
+    # pv 3.0 - base 0.4 - car 3.016 < 0: no surplus left for the ACs
+    assert not house.on["ac1"] and not house.on["ac2"]
+    assert all(c.reason.startswith("plan de carga") for _, c in house.commands("car"))
+    assert ctrl.g.violations == 0
+
+
+def test_held_car_level_capped_by_contracted_power():
+    ctrl = controller()
+    house = House(ctrl, base=2.0, pv=0.0)
+    house.inputs_extra["car"] = {"held_level": 32 * 0.232}
+    house.run(T0, T0 + 600)
+    assert house.on["car"]
+    assert 2.0 + house.car_level <= 4.14 + 0.05
+
+
+def test_held_car_released_back_to_optimiser():
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=0.0)
+    house.inputs_extra["car"] = {"held_level": 6 * 0.232}
+    house.run(T0, T0 + 300)
+    assert house.on["car"]
+    house.inputs_extra["car"] = {"held_level": None}
+    out = house.run(T0 + 300, T0 + 1500)
+    assert out.status["car"].controllable and not out.status["car"].held
+    assert not house.on["car"]  # no sun: the optimiser stops it (after min_on)
+
+
+def test_manual_car_is_not_driven_by_the_planner():
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=0.0)
+    house.inputs_extra["car"] = {"held_level": 6 * 0.232, "manual": True}
+    out = house.run(T0, T0 + 600)
+    assert not house.on["car"] and not out.status["car"].held
