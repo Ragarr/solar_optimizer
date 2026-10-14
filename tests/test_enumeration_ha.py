@@ -359,3 +359,33 @@ async def test_offline_device_status(hass: HomeAssistant):
     hass.states.async_set(ACS[1], "unavailable")
     await run(hass, world, t0, 60)
     assert hass.states.get("sensor.solar_optimizer_status_aire_2").state == "offline"
+
+
+async def test_charge_planner_holds_the_car(hass: HomeAssistant):
+    """A date target tomorrow 6:00 at 90 % with the car at 50 %: the planner holds the car (status
+    "plan"), the supervisor charges it within the guards; switched off, it goes back to the
+    optimiser"""
+    restore = [State("switch.solar_optimizer_plan_carga", "on")]
+    world, t0 = await setup(hass, restore=restore, dry_run=False)
+    tomorrow = (t0 + timedelta(days=1)).replace(hour=6, minute=0)
+    hass.states.async_set("input_boolean.plan_carga_evento_1", "on")
+    hass.states.async_set("input_datetime.plan_carga_evento_1", tomorrow.strftime("%Y-%m-%d %H:%M:%S"), {"has_date": True, "has_time": True})
+    hass.states.async_set("input_number.plan_carga_evento_1", 90)
+    hass.states.async_set("sensor.deepal_battery", 50)
+    hass.states.async_set("sensor.cargador_ev_estado", "plugged_in")
+    await run(hass, world, t0, 900)
+    plan = hass.states.get("sensor.solar_optimizer_plan_carga")
+    assert plan.attributes["retenido"] is True, plan
+    assert plan.attributes["objetivos"][0]["pct"] == 90
+    assert hass.states.get("sensor.solar_optimizer_status_coche").state == "plan"
+    assert plan.attributes["horas"]
+    check_invariants(world)
+    assert hass.states.get("sensor.solar_optimizer_violations").state == "0"
+    # Planner off: preview, the car is the optimiser's again
+    coordinator = SolarOptimizerCoordinator.get_coordinator()
+    with patch("homeassistant.core.ServiceRegistry.async_call", side_effect=world.service):
+        await coordinator.runtime.planner.switch_entity.async_turn_off()
+    assert hass.states.get("switch.solar_optimizer_plan_carga").state == "off"
+    await run(hass, world, t0 + timedelta(seconds=900), 120)
+    assert hass.states.get("sensor.solar_optimizer_plan_carga").attributes["retenido"] is False
+    assert hass.states.get("sensor.solar_optimizer_status_coche").state == "auto"

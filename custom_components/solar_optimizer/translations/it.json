@@ -506,7 +506,8 @@
           "manual": "Manual",
           "faulty": "Faulty",
           "excluded": "Not included",
-          "offline": "Offline"
+          "offline": "Offline",
+          "plan": "Piano di carica"
         }
       },
       "device_power": {

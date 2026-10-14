@@ -6,7 +6,9 @@ Powers in kW, prices in €/kWh, times in epoch seconds.
 Surplus: E = P - R with R = X - sum(y_i) (house consumption without the controllable consumers,
 y_i their measured power or their nominal level). With the net consumption N = X - P (grid
 import, negative when exporting): E = sum(y_i) - N. Consumers that are excluded, in manual mode
-or faulty are not controllable: their consumption stays in R.
+or faulty are not controllable: their consumption stays in R. Neither is a consumer held by the
+charge planner (the car while it plans "X % at time t"): its consumption stays in R too, but the
+supervisor still commands it (the planner's level), verifies it and sheds it.
 
 Ê is the time-weighted mean of E over the smoothing window (2 min); samples taken right after a
 command are discarded (the measures are still moving). E+ = max(0, Ê). The import margin H is the
@@ -47,6 +49,7 @@ class DeviceInput:
     level: float | None = None  # current setting (kW); None for on/off devices
     measured: float | None = None  # measured power (kW) if any
     force_level: float | None = None  # forced level (off-peak minimum, start_device)
+    held_level: float | None = None  # held by the charge planner: the level it asks (kW)
 
 
 @dataclass
@@ -71,6 +74,7 @@ class DeviceStatus:
     controllable: bool = False
     start_at: float | None = None
     stop_at: float | None = None
+    held: bool = False
 
 
 @dataclass
@@ -136,9 +140,17 @@ class Controller:
 
     # ------------------------------------------------------------------ helpers
 
-    def _controllable(self, name: str, di: DeviceInput) -> bool:
+    def _managed(self, name: str, di: DeviceInput) -> bool:
+        """Commanded by Solar Optimizer (the optimiser or the charge planner)"""
         st = self.states[name]
         return di.included and not di.manual and di.reachable and not st.faulty
+
+    def _controllable(self, name: str, di: DeviceInput) -> bool:
+        """Part of the optimiser's problem"""
+        return self._managed(name, di) and di.held_level is None
+
+    def _held(self, name: str, di: DeviceInput) -> bool:
+        return self._managed(name, di) and di.held_level is not None
 
     def _y(self, name: str, di: DeviceInput) -> float:
         st = self.states[name]
@@ -166,7 +178,7 @@ class Controller:
         out = []
         for name, cfg in self.devices.items():
             di = inp.devices.get(name)
-            if di is None or not self._controllable(name, di):
+            if di is None or not self._managed(name, di):
                 continue
             value = cfg.value_peak if not inp.offpeak or cfg.value_offpeak is None else cfg.value_offpeak
             out.append((name, self.states[name], cfg.params, value))
@@ -191,7 +203,7 @@ class Controller:
                 on = st.on
             self.sup.observe(st, cfg.params, on, di.level, inp.now)
             msg = self.sup.observe_measured(st, cfg.params, di.measured, inp.now)
-            if msg and self._controllable(name, di):
+            if msg and self._managed(name, di):
                 out.notifications.append((f"{name}:not_absorbing", f"{name}: {msg}; se reintentará más tarde"))
             if st.not_absorbing_until is not None and inp.now >= st.not_absorbing_until:
                 self.sup.reset_not_absorbing(st)
@@ -264,7 +276,7 @@ class Controller:
         for name, cfg in self.devices.items():
             di = inp.devices.get(name)
             st = self.states[name]
-            if di is None or not self._controllable(name, di):
+            if di is None or not self._managed(name, di):
                 st.pending = None
                 continue
             retry, msg = self.sup.verify(name, st, cfg.params, now)
@@ -280,7 +292,7 @@ class Controller:
                 car = self._car()
                 if car is not None:
                     st, cfg, di = self.states[car], self.devices[car], inp.devices.get(car)
-                    if di is not None and self._controllable(car, di) and st.on and st.pending is None and self.sup.can_stop(st, cfg.params, now):
+                    if di is not None and self._managed(car, di) and st.on and st.pending is None and self.sup.can_stop(st, cfg.params, now):
                         self._emit(Command(car, OFF, 0.0, "estado seguro: sensores sin datos"), inp, out, dry_run)
             self._status(inp, out, None)
             return out
@@ -323,18 +335,42 @@ class Controller:
             cmd = self.sup.decide(c.id, st, cfg.params, self.g, planned, now, dry_run)
             if cmd is not None and not warm:
                 self._emit(cmd, inp, out, dry_run)
-        self._status(inp, out, plan, consumers)
+        held = self._drive_held(inp, out, dry_run, warm)
+        self._status(inp, out, plan, consumers, held)
         return out
 
-    def _status(self, inp: Inputs, out: Output, plan: Plan | None, consumers=None) -> None:
+    def _drive_held(self, inp: Inputs, out: Output, dry_run: bool, warm: bool) -> dict[str, float]:
+        """The consumers held by the charge planner: its level, within what the guards allow and
+        what fits under the contracted limit now (the house as measured, the device apart)"""
+        held = {}
+        for name, cfg in self.devices.items():
+            di = inp.devices.get(name)
+            if di is None or not self._held(name, di):
+                continue
+            st = self.states[name]
+            available = di.available and st.not_absorbing_until is None
+            levels = self.sup.allowed_levels(st, cfg.params, self.g, inp.now, available)
+            room = inp.limit - (inp.net - self._y(name, di)) if inp.net is not None else 0.0
+            fit = [x for x in levels if x <= min(di.held_level, room) + EPS]
+            planned = max(fit) if fit else min(levels)
+            held[name] = planned
+            cmd = self.sup.decide(name, st, cfg.params, self.g, planned, inp.now, dry_run)
+            if cmd is not None and not warm:
+                cmd = Command(cmd.device, cmd.kind, cmd.value, f"plan de carga: {cmd.reason}", retry=cmd.retry, shed=cmd.shed)
+                self._emit(cmd, inp, out, dry_run)
+        return held
+
+    def _status(self, inp: Inputs, out: Output, plan: Plan | None, consumers=None, held: dict[str, float] | None = None) -> None:
         levels = {c.id: c.levels for c in consumers or []}
+        held = held or {}
         for name, cfg in self.devices.items():
             st = self.states[name]
             di = inp.devices.get(name)
             out.status[name] = DeviceStatus(
                 levels=levels.get(name, ()),
-                planned=(plan.levels.get(name, 0.0) if plan else 0.0),
+                planned=held[name] if name in held else (plan.levels.get(name, 0.0) if plan else 0.0),
                 controllable=di is not None and self._controllable(name, di),
+                held=di is not None and self._held(name, di),
                 start_at=self.sup.start_possible_at(st, cfg.params, self.g, inp.now),
                 stop_at=self.sup.stop_possible_at(st, cfg.params, inp.now),
             )

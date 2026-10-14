@@ -19,6 +19,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
+    DOMAIN,
     CONF_CONTRACTED_POWER_ENTITY_ID,
     CONF_CONTRACTED_POWER_MARGIN,
     CONF_DISCARD_AFTER_COMMAND_SEC,
@@ -41,6 +42,7 @@ from .const import (
     EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
     NOTIFICATION_ACTION_END_MANUAL,
 )
+from .charge_planner_runtime import ChargePlannerRuntime
 from .controller_core import Controller, ControllerParams, DeviceConfig, DeviceInput, Inputs, Output
 from .supervisor_core import LEVEL, OFF, ON, GlobalParams
 
@@ -103,6 +105,7 @@ class SupervisorRuntime:
         self.last_output: Output | None = None
         self.last_inputs: Inputs | None = None
         self.foreign_user_ids: set[str] = set()
+        self.planner = ChargePlannerRuntime(hass, self, (hass.data.get(DOMAIN) or {}).get("charge_planner"))
 
     # ------------------------------------------------------------------ setup
 
@@ -117,8 +120,10 @@ class SupervisorRuntime:
             self._unsubs.append(async_track_state_change_event(self.hass, [entity], self._on_grid_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE, self._on_manual_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_MOBILE_APP_NOTIFICATION_ACTION, self._on_notification_action))
+        self.planner.start()
 
     def unload(self) -> None:
+        self.planner.stop()
         for unsub in self._unsubs:
             unsub()
         self._unsubs = []
@@ -223,6 +228,7 @@ class SupervisorRuntime:
                 level=None if level is None else level / 1000,
                 measured=None if measured is None else measured / 1000,
                 force_level=None if force is None else force / 1000,
+                held_level=self.planner.held_level(d.name),
             )
         return Inputs(
             now=now.timestamp(),
@@ -242,6 +248,8 @@ class SupervisorRuntime:
 
     async def async_step(self, now: datetime) -> dict:
         """One control cycle; returns the data published by the sensors"""
+        if self.planner.started:
+            await self.planner.async_maybe_run(now)
         async with self._lock:
             inputs = self.build_inputs(now)
             controller = self._get_controller(inputs.now)
@@ -305,6 +313,8 @@ class SupervisorRuntime:
                 mode = "manual"
             elif st is not None and st.faulty:
                 mode = "faulty"
+            elif status is not None and status.held:
+                mode = "plan"
             else:
                 mode = "auto"
             measured = d.measured_w()

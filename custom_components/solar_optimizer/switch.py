@@ -38,7 +38,7 @@ async def async_setup_entry(
     entities = []
     if entry.data[CONF_DEVICE_TYPE] == CONF_DEVICE_CENTRAL:
         if entry.data.get(CONF_ALGORITHM) == ALGORITHM_ENUMERATION:
-            async_add_entities([SolarOptimizerDryRunSwitch(coordinator)])
+            async_add_entities([SolarOptimizerDryRunSwitch(coordinator), ChargePlannerSwitch(coordinator)])
         return
 
     unique_id = name_to_unique_id(entry.data[CONF_NAME])
@@ -517,3 +517,48 @@ class SolarOptimizerDryRunSwitch(SwitchEntity, RestoreEntity):
     async def async_turn_off(self, **kwargs: Any) -> None:
         self._attr_is_on = False
         self.async_write_ha_state()
+
+
+class ChargePlannerSwitch(SwitchEntity, RestoreEntity):
+    """Charge planner: on, it holds the car before its targets; off (default), it only publishes
+    what it would do (preview)"""
+
+    def __init__(self, coordinator: SolarOptimizerCoordinator):
+        self._coordinator = coordinator
+        self._attr_has_entity_name = True
+        self.entity_id = f"{SWITCH_DOMAIN}.solar_optimizer_plan_carga"
+        self._attr_name = "Plan de carga"
+        self._attr_translation_key = "charge_planner"
+        self._attr_unique_id = "solar_optimizer_plan_carga"
+        self._attr_icon = "mdi:car-clock"
+        self._attr_is_on = False
+
+    @property
+    def device_info(self) -> DeviceInfo | None:
+        return DeviceInfo(
+            entry_type=DeviceEntryType.SERVICE,
+            identifiers={(DOMAIN, CONF_DEVICE_CENTRAL)},
+            name="Solar Optimizer",
+            manufacturer=DEVICE_MANUFACTURER,
+            model=INTEGRATION_MODEL,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        self._attr_is_on = last_state is not None and last_state.state == "on"
+        self._coordinator.runtime.planner.switch_entity = self
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._coordinator.runtime.planner.switch_entity is self:
+            self._coordinator.runtime.planner.switch_entity = None
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self._attr_is_on = True
+        self.async_write_ha_state()
+        self._coordinator.runtime.planner.request_run()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self._attr_is_on = False
+        self.async_write_ha_state()
+        self._coordinator.runtime.planner.request_run()

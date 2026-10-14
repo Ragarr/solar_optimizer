@@ -75,6 +75,7 @@ async def async_setup_entry(
                 PlanValueSensor(coordinator, "planned_import", "mdi:transmission-tower-import"),
                 PlanValueSensor(coordinator, "planned_export", "mdi:transmission-tower-export"),
                 ViolationsSensor(coordinator),
+                ChargePlanSensor(coordinator),
             ]
         async_add_entities(entities, False)
 
@@ -577,13 +578,55 @@ class ViolationsSensor(CoordinatorEntity, RestoreSensor):
         self.async_write_ha_state()
 
 
+class ChargePlanSensor(RestoreSensor):
+    """Charge planner of the car: state = what it does (no target, preview, active, reached, cannot
+    reach, paused), attributes = targets, estimated SoC, hour by hour plan and costs. Also keeps
+    the planner memory (learned kWh per %, skipped targets) across restarts."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:car-clock"
+    _unrecorded_attributes = frozenset({"horas", "tramos", "resumen", "memoria", "objetivos"})
+
+    def __init__(self, coordinator):
+        self._planner = coordinator.runtime.planner
+        self.entity_id = "sensor.solar_optimizer_plan_carga"
+        self._attr_unique_id = "solar_optimizer_plan_carga"
+        self._attr_translation_key = "charge_plan"
+        self._attr_name = "Plan de carga"
+        self._attr_native_value = None
+        self._unsub = None
+
+    @property
+    def device_info(self):
+        return _central_device_info()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and isinstance(last.attributes.get("memoria"), dict):
+            self._planner.restore_state(last.attributes["memoria"])
+        self._unsub = self._planner.add_listener(self._update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+    @callback
+    def _update(self) -> None:
+        out = self._planner.output
+        self._attr_native_value = out.state
+        self._attr_extra_state_attributes = {**out.attrs, "memoria": self._planner.export_state()}
+        self.async_write_ha_state()
+
+
 class DeviceStatusSensor(CoordinatorEntity, SensorEntity):
     """Mode of a device for Solar Optimizer: auto, manual, faulty, excluded; attributes: group,
     value, current and planned level, when it can be started or stopped"""
 
     _attr_has_entity_name = True
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = ["auto", "manual", "faulty", "excluded", "offline"]
+    _attr_options = ["auto", "manual", "faulty", "excluded", "offline", "plan"]
     _attr_icon = "mdi:robot"
 
     def __init__(self, coordinator, device):

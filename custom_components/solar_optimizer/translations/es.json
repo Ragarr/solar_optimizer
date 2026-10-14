@@ -512,7 +512,8 @@
                     "manual": "Manual",
                     "faulty": "Averiado",
                     "excluded": "Fuera del plan",
-                    "offline": "Sin conexión"
+                    "offline": "Sin conexión",
+                    "plan": "Plan de carga"
                 }
             },
             "device_power": {
