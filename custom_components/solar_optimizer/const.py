@@ -83,6 +83,7 @@ CONF_MANUAL_DETECTION = "manual_detection"
 CONF_MANUAL_MAX_HOURS = "manual_max_hours"
 CONF_ECHO_WINDOW_SEC = "echo_window_sec"
 CONF_MANUAL_RELEASE_TEMPLATE = "manual_release_template"
+CONF_MANUAL_END_AT_RESET = "manual_end_at_reset"
 DEFAULT_MANUAL_MAX_HOURS = 12
 DEFAULT_ECHO_WINDOW_SEC = 60
 

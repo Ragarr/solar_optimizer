@@ -33,6 +33,7 @@ from .const import (
     CONF_MANUAL_MAX_HOURS,
     CONF_ECHO_WINDOW_SEC,
     CONF_MANUAL_RELEASE_TEMPLATE,
+    CONF_MANUAL_END_AT_RESET,
     DEFAULT_MANUAL_MAX_HOURS,
     DEFAULT_ECHO_WINDOW_SEC,
     EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
@@ -283,6 +284,9 @@ class ManagedDevice:
         # while, so that the state changes it causes are recognised as echoes of our own commands.
         self._manual_detection: bool = bool(device_config.get(CONF_MANUAL_DETECTION, False))
         self._manual_max_hours = float(device_config.get(CONF_MANUAL_MAX_HOURS) or DEFAULT_MANUAL_MAX_HOURS)
+        # The manual mode also ends at the daily reset (raz_time) unless disabled: e.g. an air
+        # conditioner switched on by hand at night must not be switched off at the reset
+        self._manual_end_at_reset: bool = device_config.get(CONF_MANUAL_END_AT_RESET, True) is not False
         echo = device_config.get(CONF_ECHO_WINDOW_SEC)
         self._echo_window_sec = float(DEFAULT_ECHO_WINDOW_SEC if echo is None else echo)
         release = device_config.get(CONF_MANUAL_RELEASE_TEMPLATE)
@@ -733,10 +737,11 @@ class ManagedDevice:
 
     def set_manual(self, raz_time: time | None, entity_id: str | None = None) -> None:
         """The device was changed by hand: Solar Optimizer leaves it alone until the end time (at
-        most manual_max_hours, and never beyond the next daily reset). The minimal durations count
+        most manual_max_hours, and never beyond the next daily reset unless manual_end_at_reset is
+        off). The minimal durations count
         from this change, as if Solar Optimizer had made it."""
         end = self.now + timedelta(hours=self._manual_max_hours)
-        if raz_time is not None:
+        if raz_time is not None and self._manual_end_at_reset:
             end = min(end, self.next_raz_datetime(raz_time))
         self._manual_end_time = end
         if entity_id is not None and entity_id == self._power_entity_id and entity_id != self._entity_id:

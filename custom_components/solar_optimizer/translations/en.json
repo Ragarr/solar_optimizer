@@ -99,7 +99,8 @@
                     "shed_reaction_sec": "Load shedding reaction (s)",
                     "verify_after_sec": "Verification delay (s)",
                     "not_absorbing_w": "Not absorbing threshold (W)",
-                    "manual_ignore_template": "Ignore changes template"
+                    "manual_ignore_template": "Ignore changes template",
+                    "manual_end_at_reset": "End the manual mode at the daily reset"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -130,7 +131,8 @@
                     "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
                     "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
-                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
+                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
+                    "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
                 }
             },
             "powered_device": {
@@ -172,7 +174,8 @@
                     "shed_reaction_sec": "Load shedding reaction (s)",
                     "verify_after_sec": "Verification delay (s)",
                     "not_absorbing_w": "Not absorbing threshold (W)",
-                    "manual_ignore_template": "Ignore changes template"
+                    "manual_ignore_template": "Ignore changes template",
+                    "manual_end_at_reset": "End the manual mode at the daily reset"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -210,7 +213,8 @@
                     "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
                     "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
-                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
+                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
+                    "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
                 }
             }
         },
@@ -308,7 +312,8 @@
                     "shed_reaction_sec": "Load shedding reaction (s)",
                     "verify_after_sec": "Verification delay (s)",
                     "not_absorbing_w": "Not absorbing threshold (W)",
-                    "manual_ignore_template": "Ignore changes template"
+                    "manual_ignore_template": "Ignore changes template",
+                    "manual_end_at_reset": "End the manual mode at the daily reset"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -339,7 +344,8 @@
                     "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
                     "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
-                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
+                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
+                    "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
                 }
             },
             "powered_device": {
@@ -381,7 +387,8 @@
                     "shed_reaction_sec": "Load shedding reaction (s)",
                     "verify_after_sec": "Verification delay (s)",
                     "not_absorbing_w": "Not absorbing threshold (W)",
-                    "manual_ignore_template": "Ignore changes template"
+                    "manual_ignore_template": "Ignore changes template",
+                    "manual_end_at_reset": "End the manual mode at the daily reset"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -419,7 +426,8 @@
                     "shed_reaction_sec": "Time to wait after shedding this device before the next shedding step",
                     "verify_after_sec": "The state is read back this long after a command; up to 3 retries, then the device is marked faulty",
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
-                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)"
+                    "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
+                    "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)"
                 }
             }
         },
