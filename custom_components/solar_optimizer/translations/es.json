@@ -64,7 +64,7 @@
                     "start_separation_sec": "Dos arranques de cualesquiera equipos se separan al menos esto",
                     "warmup_sec": "Tras un reinicio no se ordena nada hasta tener este tiempo de medidas válidas (salvo el deslastre)",
                     "discard_after_command_sec": "Las muestras del excedente justo después de una orden no se promedian (las medidas aún se mueven)",
-                    "foreign_user_ids": "Ids de usuario separados por comas: sus cambios se registran pero no cuentan como manuales (útil en modo sombra junto a otro controlador)"
+                    "foreign_user_ids": "Ids de usuario separados por comas: sus cambios se registran pero no cuentan como manuales (útil en dry run junto a otro controlador)"
                 }
             },
             "device": {
@@ -466,7 +466,7 @@
         },
         "switch": {
             "dry_run": {
-                "name": "Modo sombra"
+                "name": "Dry run"
             },
             "enable": {
                 "name": "Incluido en el plan"
@@ -497,8 +497,15 @@
                     "auto": "Automático",
                     "manual": "Manual",
                     "faulty": "Averiado",
-                    "excluded": "Fuera del plan"
+                    "excluded": "Fuera del plan",
+                    "offline": "Sin conexión"
                 }
+            },
+            "device_power": {
+                "name": "Potencia"
+            },
+            "device_planned": {
+                "name": "Potencia planificada"
             }
         },
         "number": {

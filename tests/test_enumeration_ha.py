@@ -256,6 +256,11 @@ async def test_acts_with_the_guards_and_never_violates(hass: HomeAssistant):
     assert hass.states.get("sensor.solar_optimizer_violations").state == "0"
     status = hass.states.get("sensor.solar_optimizer_status_coche")
     assert status.state == "auto" and status.attributes["group"] == 1
+    # per device power sensors for the dashboard
+    power = float(hass.states.get("sensor.solar_optimizer_power_coche").state)
+    planned = float(hass.states.get("sensor.solar_optimizer_planned_coche").state)
+    assert power == world.car_w() and planned >= 0
+    assert status.attributes["is_on"] == (world.car_w() > 0)
 
 
 async def test_load_shedding_fast_path(hass: HomeAssistant):
@@ -346,3 +351,11 @@ async def test_dry_run_blocks_every_path(hass: HomeAssistant):
         await car.stop_forced()
         await hass.async_block_till_done()
     assert world.device_calls() == []
+
+
+async def test_offline_device_status(hass: HomeAssistant):
+    """An unavailable device shows as offline and is left out of the plan"""
+    world, t0 = await setup(hass)
+    hass.states.async_set(ACS[1], "unavailable")
+    await run(hass, world, t0, 60)
+    assert hass.states.get("sensor.solar_optimizer_status_aire_2").state == "offline"
