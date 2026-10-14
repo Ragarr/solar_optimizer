@@ -128,12 +128,12 @@ class Checker:
 # ---------------------------------------------------------------------- simulation
 
 
-def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 23.5 * 3600) -> dict:
+def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 23.5 * 3600, hysteresis: float = 0.0) -> dict:
     rnd = random.Random(seed)
     weather, base = Weather(profile, rnd), BaseLoad(rnd)
     car = SimCar(rnd)
     acs = {n: SimAC(rnd) for n in ACS}
-    ctrl = cc.Controller(device_configs())
+    ctrl = cc.Controller(device_configs(), cparams=cc.ControllerParams(hysteresis=hysteresis))
     checker = Checker({c.name: c.params for c in device_configs()})
     manual_until: dict[str, float] = {}
     alphas = {1: profile.alpha_car, 2: round(1 - profile.alpha_car, 6)}
@@ -290,9 +290,10 @@ def main(argv=None):
     ap.add_argument("--seeds", type=int, default=3)
     ap.add_argument("--profile", action="append")
     ap.add_argument("--json")
+    ap.add_argument("--hysteresis", type=float, default=0.0, help="€/h: keep the current plan unless the best is worth more")
     args = ap.parse_args(argv)
     chosen = [p for p in profiles() if not args.profile or p.name in args.profile]
-    results = [simulate(p, s) for p in chosen for s in range(args.seeds)]
+    results = [simulate(p, s, hysteresis=args.hysteresis) for p in chosen for s in range(args.seeds)]
     print(report(results))
     bad = [(r["profile"], r["seed"], v) for r in results for v in r["violations"]]
     print(f"\nViolaciones de invariantes: {len(bad)}")

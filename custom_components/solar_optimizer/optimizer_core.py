@@ -85,13 +85,17 @@ def _evaluate(plan_levels, values, b, p_imp, p_exp):
     return total, used, imported, b - used, objective
 
 
-def solve_group(consumers: list[Consumer], budget: float, margin: float, p_imp: float, p_exp: float, cap: float | None = None) -> GroupResult:
+def solve_group(
+    consumers: list[Consumer], budget: float, margin: float, p_imp: float, p_exp: float, cap: float | None = None, hysteresis: float = 0.0
+) -> GroupResult:
     """Best plan of a group by exhaustive enumeration (F_g(b, h)).
 
     ``budget`` (b) is the surplus offered to the group, ``margin`` (h) the import still allowed by
     the contracted power and ``cap`` the optional import cap of the group. When no plan respects the
     import limit (the supervisor can forbid switching a consumer off), the plan that imports the
-    least is chosen."""
+    least is chosen. ``hysteresis`` (€/h): the current plan is kept unless the best one is worth
+    more than this over it (avoids changing level for a negligible gain when the surplus hovers
+    around a threshold)."""
     budget = max(0.0, budget)
     limit = margin if cap is None else min(margin, cap)
     if not consumers:
@@ -103,9 +107,12 @@ def solve_group(consumers: list[Consumer], budget: float, margin: float, p_imp: 
     best = None  # (feasible, objective, is_current, total, -imported) ordering key
     best_levels = None
     best_eval = None
+    current_eval = None
     for levels in itertools.product(*(c.levels for c in consumers)):
         total, used, imported, left, objective = _evaluate(levels, values, budget, p_imp, p_exp)
         feasible = imported <= limit + EPS
+        if feasible and _same(levels, current):
+            current_eval = (total, used, imported, left, objective)
         if feasible:
             key = (1, objective, 0.0, 0.0)
         else:
@@ -114,6 +121,8 @@ def solve_group(consumers: list[Consumer], budget: float, margin: float, p_imp: 
         if best is not None and not _better(key, best, levels, best_levels, current, total, best_eval[0]):
             continue
         best, best_levels, best_eval = key, levels, (total, used, imported, left, objective)
+    if hysteresis > 0 and current_eval is not None and best[0] == 1 and best_eval[4] - current_eval[4] <= hysteresis + EPS:
+        best_levels, best_eval = current, current_eval
     total, used, imported, left, objective = best_eval
     return GroupResult(dict(zip(ids, best_levels)), total, used, imported, left, objective)
 
@@ -151,6 +160,7 @@ def water_fill(
     p_imp: float,
     p_exp: float,
     max_passes: int = 10,
+    hysteresis: float = 0.0,
 ) -> Plan:
     """Share the surplus between the groups (water-filling).
 
@@ -182,7 +192,7 @@ def water_fill(
     # Phase 1
     for gid in group_ids:
         budget = surplus * alphas.get(gid, 0.0) / total_alpha
-        results[gid] = solve_group(by_group.get(gid, []), budget, margin_for(gid), p_imp, p_exp, caps.get(gid))
+        results[gid] = solve_group(by_group.get(gid, []), budget, margin_for(gid), p_imp, p_exp, caps.get(gid), hysteresis)
 
     # Phase 2
     passes = 0
@@ -192,7 +202,7 @@ def water_fill(
         changed = False
         for gid in group_ids:
             budget = budgets[gid] + left
-            res = solve_group(by_group.get(gid, []), budget, margin_for(gid), p_imp, p_exp, caps.get(gid))
+            res = solve_group(by_group.get(gid, []), budget, margin_for(gid), p_imp, p_exp, caps.get(gid), hysteresis)
             if any(not _close(res.plan[k], results[gid].plan[k]) for k in res.plan):
                 changed = True
             results[gid] = res

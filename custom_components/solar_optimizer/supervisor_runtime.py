@@ -23,6 +23,7 @@ from .const import (
     CONF_CONTRACTED_POWER_MARGIN,
     CONF_DISCARD_AFTER_COMMAND_SEC,
     CONF_FOREIGN_USER_IDS,
+    CONF_HYSTERESIS,
     CONF_GROUP_COUNT,
     CONF_GROUP_IMPORT_CAPS,
     CONF_NOTIFY_SERVICE,
@@ -158,6 +159,7 @@ class SupervisorRuntime:
         cparams = ControllerParams(
             smoothing_window=DEFAULT_SMOOTHING_WINDOW_SEC if window is None else float(window),
             discard_after_command=float(self.config.get(CONF_DISCARD_AFTER_COMMAND_SEC, DEFAULT_DISCARD_AFTER_COMMAND_SEC) or 0),
+            hysteresis=float(self.config.get(CONF_HYSTERESIS) or 0.0),
         )
         controller = Controller(configs, gparams, cparams)
         real_on = {d.name: bool(d.is_active) for d in devices if d.is_reachable}

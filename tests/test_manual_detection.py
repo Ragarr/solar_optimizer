@@ -246,3 +246,61 @@ async def test_manual_not_ended_at_reset_when_disabled(hass: HomeAssistant, init
     assert device.manual_end_time == _at(hass, 14)  # 2:00 + 12 h, not 5:00
     device._set_now(_at(hass, 5, 1))
     assert device.check_manual_expiry() is False and device.is_manual
+
+
+async def test_manual_ends_when_switched_off_for_a_minute(hass: HomeAssistant, init_solar_optimizer_central_config):
+    """manual_end_when_off: a device switched on by hand goes back to automatic once it has been
+    off for 60 s (a short flicker does not count); switching it off restarts nothing"""
+    device = await _setup(hass, {**DEVICE_DATA, CONF_MANUAL_END_WHEN_OFF: True, CONF_MANUAL_MAX_HOURS: 16, CONF_MANUAL_END_AT_RESET: False})
+    device._set_now(_at(hass, 2))
+    await _set(hass, ENTITY, "on", USER)
+    assert device.is_manual and device.manual_started_on
+    assert device.manual_end_time == _at(hass, 18)
+    # flicker: off 20 s then on again
+    device._set_now(_at(hass, 3))
+    await _set(hass, ENTITY, "off", Context())
+    assert device.check_manual_expiry() is False
+    device._set_now(_at(hass, 3) + timedelta(seconds=20))
+    await _set(hass, ENTITY, "on", Context())
+    assert device.check_manual_expiry() is False
+    device._set_now(_at(hass, 3, 2))
+    assert device.check_manual_expiry() is False and device.is_manual
+    # switched off by hand for good
+    device._set_now(_at(hass, 4))
+    await _set(hass, ENTITY, "off", USER)
+    assert device.is_manual  # not yet: 60 s off needed
+    device._set_now(_at(hass, 4) + timedelta(seconds=30))
+    device.check_manual_expiry()
+    device._set_now(_at(hass, 4) + timedelta(seconds=95))
+    assert device.check_manual_expiry() is True and not device.is_manual
+
+
+async def test_manual_switched_off_by_hand_stays_manual(hass: HomeAssistant, init_solar_optimizer_central_config):
+    """A device switched OFF by hand stays manual (until the button or the maximal time)"""
+    device = await _setup(hass, {**DEVICE_DATA, CONF_MANUAL_END_WHEN_OFF: True})
+    device._set_now(_at(hass, 9))
+    await _set(hass, ENTITY, "on", Context())  # e.g. started by SO before: back to auto first
+    device.end_manual("test")
+    device._set_now(_at(hass, 10))
+    await _set(hass, ENTITY, "off", USER)
+    assert device.is_manual and not device.manual_started_on
+    device._set_now(_at(hass, 11))
+    assert device.check_manual_expiry() is False and device.is_manual
+
+
+async def test_level_power_map(hass: HomeAssistant, init_solar_optimizer_central_config):
+    """level_power_map: the levels are the measured powers; the commands send the setting"""
+    data = {**DEVICE_DATA, CONF_LEVEL_POWER_MAP: "6:690, 10:1050, 16:1580"}
+    device = await _setup(hass, data)
+    assert device.units_to_w(10) == 1050 and device.units_to_w(20) == 2000
+    assert device.w_to_units(1050) == 10 and device.w_to_units(1580) == 16
+    assert device.levels_w()[:2] == (0.0, 600.0)  # input_number: power_min..max by step, unmapped ones by factor
+    hass.states.async_set(AMPS, "10")
+    assert device.level_w() == 1050
+    with patch("homeassistant.core.ServiceRegistry.async_call") as call:
+        await device.change_requested_power(1580)
+    assert call.call_args.kwargs["service_data"] == {"value": 16}
+    # the echo of that command is not a manual change
+    device._set_now(_at(hass, 12))
+    await _set(hass, AMPS, "16", Context())
+    assert not device.is_manual

@@ -47,6 +47,8 @@ from .const import (
     CONF_VERIFY_AFTER_SEC,
     CONF_NOT_ABSORBING_W,
     CONF_MANUAL_IGNORE_TEMPLATE,
+    CONF_LEVEL_POWER_MAP,
+    CONF_MANUAL_END_WHEN_OFF,
     DEFAULT_VALUE,
     DEFAULT_CONFIRM_ON_MIN,
     DEFAULT_CONFIRM_OFF_MIN,
@@ -187,6 +189,19 @@ def do_event_action(
     )
 
 
+def _parse_level_map(text) -> dict[float, float]:
+    """"6:1387, 8:1732" -> {6.0: 1387.0, 8.0: 1732.0}"""
+    out = {}
+    for part in str(text or "").replace(";", ",").split(","):
+        if ":" in part:
+            key, value = part.split(":", 1)
+            try:
+                out[float(key.strip().rstrip("Aa"))] = float(value.strip())
+            except ValueError:
+                _LOGGER.warning("Invalid level_power_map entry %r", part)
+    return out
+
+
 def _or(value, default):
     return default if value in (None, "") else value
 
@@ -312,6 +327,13 @@ class ManagedDevice:
         not_absorbing = device_config.get(CONF_NOT_ABSORBING_W)
         self._not_absorbing_w = float(not_absorbing) if not_absorbing not in (None, "", 0) else None
         self._value_entities: dict[str, object] = {}  # "peak" / "offpeak" -> number entity
+        # Measured power of each setting of the power entity ("6:1387, 8:1732": 6 A draws 1387 W);
+        # settings not listed use the divide factor
+        self._level_power_map: dict[float, float] = _parse_level_map(device_config.get(CONF_LEVEL_POWER_MAP))
+        # The manual mode of a device switched on by hand ends when it is switched off again
+        self._manual_end_when_off: bool = bool(device_config.get(CONF_MANUAL_END_WHEN_OFF, False))
+        self._manual_started_on: bool = False
+        self._manual_off_since: datetime | None = None
 
         # Some checks
         # min_on_time_per_day_sec requires an offpeak_time
@@ -375,13 +397,17 @@ class ManagedDevice:
                 self.reset_next_date_available_power()
 
             context = self._new_command_context(action_type, requested_power)
+            service_power = requested_power
+            if action_type == ACTION_CHANGE_POWER and self._level_power_map and requested_power is not None:
+                # the service takes the setting (e.g. 13 A), not the measured power
+                service_power = self.w_to_units(float(requested_power)) * self._convert_power_divide_factor
             await do_service_action(
                 self._hass,
                 entity_id,
                 action_type,
                 method,
                 self._current_power,
-                requested_power,
+                service_power,
                 self._convert_power_divide_factor,
                 context,
             )
@@ -521,6 +547,23 @@ class ManagedDevice:
         ids = {cid for cid, _ in self._own_contexts}
         return context.id in ids or (context.parent_id is not None and context.parent_id in ids)
 
+    def units_to_w(self, units: float) -> float:
+        """Power (W) drawn at a setting of the power entity (e.g. 13 A)"""
+        for key, watts in self._level_power_map.items():
+            if math.isclose(key, units):
+                return watts
+        return units * self._convert_power_divide_factor
+
+    def w_to_units(self, watts: float) -> float:
+        """Setting of the power entity for a power (W): the inverse of units_to_w"""
+        if self._level_power_map:
+            best = min(self._level_power_map.items(), key=lambda kv: abs(kv[1] - watts))
+            nominal = round(watts / self._convert_power_divide_factor)
+            if abs(best[1] - watts) <= abs(self.units_to_w(nominal) - watts):
+                return best[0]
+            return nominal
+        return round(watts / self._convert_power_divide_factor)
+
     def _power_from_state(self, state: State) -> float | None:
         """Requested power (W) shown by the power entity state (numbers like "13" or "13A")"""
         value = state.state
@@ -528,7 +571,7 @@ class ManagedDevice:
             parameter = (self._change_power_service or "").split("/")
             value = state.attributes.get(parameter[2]) if len(parameter) > 2 else None
         number = _leading_number(value)
-        return None if number is None else number * self._convert_power_divide_factor
+        return None if number is None else self.units_to_w(number)
 
     def classify_underlying_change(self, entity_id: str, new_state: State | None, old_state: State | None) -> str | None:
         """Classify a state change of the device entity or of its power entity:
@@ -629,9 +672,9 @@ class ManagedDevice:
             for option in state.attributes.get("options") or []:
                 number = _leading_number(option)
                 if number is not None:
-                    watts = number * self._convert_power_divide_factor
-                    if self._power_min - 1e-6 <= watts <= power_max + 1e-6:
-                        levels.append(watts)
+                    nominal = number * self._convert_power_divide_factor
+                    if self._power_min - 1e-6 <= nominal <= power_max + 1e-6:
+                        levels.append(self.units_to_w(number))
         if not levels and self._power_step > 0:
             watts = float(self._power_min)
             while watts <= power_max + 1e-6:
@@ -710,7 +753,8 @@ class ManagedDevice:
             if self.min_on_time_per_day_sec <= 0:
                 return None
             raz = self._coordinator.raz_time
-            if getattr(self._coordinator, "runtime", None) is not None and self._coordinator.runtime.config.get("offpeak_entity_id"):
+            entity_window = getattr(self._coordinator, "runtime", None) is not None and bool(self._coordinator.runtime.config.get("offpeak_entity_id"))
+            if entity_window and (self._offpeak_time is None or raz is None):
                 in_window = offpeak_on
             elif self._offpeak_time is None or raz is None:
                 return None
@@ -718,11 +762,16 @@ class ManagedDevice:
                 in_window = self.now.time() >= self._offpeak_time or self.now.time() < raz
             else:
                 in_window = self._offpeak_time <= self.now.time() < raz
+            if entity_window:
+                # both: the off-peak period, from offpeak_time (e.g. the night, not the morning)
+                in_window = in_window and offpeak_on
             if not in_window:
                 return None
             if self._on_time_sec >= min(self.min_on_time_per_day_sec, self.max_on_time_per_day_sec, self.max_on_time_offpeak_sec):
                 return None
-            return float(self.offpeak_power) if self._can_change_power else float(self.power_max)
+            if not self._can_change_power:
+                return float(self.power_max)
+            return float(self.units_to_w(round(float(self.offpeak_power) / self._convert_power_divide_factor)))
         except (ConfigurationError, TypeError, ValueError) as err:
             _LOGGER.error("%s - invalid off-peak configuration: %s", self._name, err)
             return None
@@ -740,10 +789,16 @@ class ManagedDevice:
         most manual_max_hours, and never beyond the next daily reset unless manual_end_at_reset is
         off). The minimal durations count
         from this change, as if Solar Optimizer had made it."""
+        if self.is_manual and self._manual_end_when_off and self._manual_started_on:
+            # Already in manual after switching it on by hand: being switched off (or a flicker)
+            # does not restart the manual mode; check_manual_expiry ends it after 60 s off
+            return
         end = self.now + timedelta(hours=self._manual_max_hours)
         if raz_time is not None and self._manual_end_at_reset:
             end = min(end, self.next_raz_datetime(raz_time))
         self._manual_end_time = end
+        self._manual_started_on = bool(self.is_active)
+        self._manual_off_since = None
         if entity_id is not None and entity_id == self._power_entity_id and entity_id != self._entity_id:
             self.reset_next_date_available_power()
         else:
@@ -774,6 +829,14 @@ class ManagedDevice:
         if self.now >= self._manual_end_time:
             self.end_manual("timeout")
             return True
+        if self._manual_end_when_off and self._manual_started_on and self.is_reachable:
+            if self.is_active:
+                self._manual_off_since = None
+            elif self._manual_off_since is None:
+                self._manual_off_since = self.now
+            elif (self.now - self._manual_off_since).total_seconds() >= 60:
+                self.end_manual("switched off")
+                return True
         if self._manual_release_template is not None:
             try:
                 if self._manual_release_template.async_render(context={}) is True:
@@ -783,9 +846,15 @@ class ManagedDevice:
                 _LOGGER.warning("%s - manual release template failed: %s", self.name, err)
         return False
 
-    def set_manual_end_time(self, end_time: datetime | None) -> None:
+    def set_manual_end_time(self, end_time: datetime | None, started_on: bool = False) -> None:
         """Restore the manual end time (used at HA restart)"""
         self._manual_end_time = end_time
+        self._manual_started_on = started_on
+
+    @property
+    def manual_started_on(self) -> bool:
+        """The manual mode started with the device switched on by hand"""
+        return self._manual_started_on
 
     @property
     def is_manual(self) -> bool:
@@ -848,7 +917,7 @@ class ManagedDevice:
         if number is None:
             self._current_power = self._power_min
             return
-        self._current_power = round(number * self._convert_power_divide_factor)
+        self._current_power = round(self.units_to_w(number))
         _LOGGER.debug(
             "Set current_power to %s for device %s cause can_change_power and amps is %s",
             self._current_power,
