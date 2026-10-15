@@ -391,3 +391,58 @@ def test_surplus_filter_resets_when_the_controllable_set_changes():
     out = house.run(T0 + 120, T0 + 130)
     # now R includes the car (pv 5.0 - base 0.4 - the car's power); without the reset it stays ~4.4
     assert out.surplus < 1.0
+
+
+def _car_plugs_in_at_night(self_acting, manual=False):
+    """No sun; the charger turns itself on when the car is plugged in; returns the seconds until we
+    stop it (None: never) and the commands sent to the car"""
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=0.0)
+    house.run(T0, T0 + 600)
+    house.on["car"] = True
+    house.inputs_extra["car"] = {"self_acting": self_acting, "manual": manual}
+    house.run(T0 + 600, T0 + 630)
+    house.inputs_extra["car"] = {"manual": manual}
+    house.run(T0 + 630, T0 + 1500)
+    cmds = [(t, c) for t, c in house.log if c.device == "car"]
+    offs = [t for t, c in cmds if c.kind == "off"]
+    return ((offs[0] - (T0 + 600)) if offs else None), cmds
+
+
+def test_charger_started_by_itself_on_plugging_can_be_stopped_at_once():
+    secs, _ = _car_plugs_in_at_night(True)
+    assert secs is not None and secs < 120
+
+
+def test_charger_started_by_itself_does_not_count_as_one_of_our_starts():
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=0.0)
+    house.run(T0, T0 + 600)
+    house.on["car"] = True
+    house.inputs_extra["car"] = {"self_acting": True}
+    house.run(T0 + 600, T0 + 630)
+    assert ctrl.states["car"].starts == [] and ctrl.states["car"].t_on is None
+
+
+def test_unexplained_start_keeps_the_minimum_on_time():
+    """Without the device's own-doing flag nothing changes: the minimum on-time still applies"""
+    secs, _ = _car_plugs_in_at_night(False)
+    assert secs is None or secs >= 600
+
+
+def test_manual_car_is_left_alone_when_it_starts_by_itself():
+    _, cmds = _car_plugs_in_at_night(True, manual=True)
+    assert cmds == []
+
+
+def test_our_own_start_keeps_the_minimum_on_time_even_if_the_flag_is_on():
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=5.0)
+    house.inputs_extra["car"] = {"self_acting": True}
+    house.run(T0, T0 + 300)
+    ons = [t for t, c in house.log if c.device == "car" and c.kind == "on"]
+    assert ons, "the car should start with the sun"
+    house.pv = 0.0
+    house.run(T0 + 300, T0 + 2400)
+    offs = [t for t, c in house.log if c.device == "car" and c.kind == "off"]
+    assert offs and offs[0] - ons[0] >= 600

@@ -50,6 +50,7 @@ class DeviceInput:
     measured: float | None = None  # measured power (kW) if any
     force_level: float | None = None  # forced level (off-peak minimum, start_device)
     held_level: float | None = None  # held by the charge planner: the level it asks (kW)
+    self_acting: bool = False  # the device acts on its own now (e.g. a charger starting when plugged)
 
 
 @dataclass
@@ -202,7 +203,14 @@ class Controller:
                 # Within the echo window only a change towards the commanded value counts: going
                 # back to the previous value is a flicker of the device (cloud devices do it)
                 on = st.on
+            started_by_device = on and not st.on and di.self_acting and (pend is None or pend["kind"] != ON)
             self.sup.observe(st, cfg.params, on, di.level, inp.now)
+            if started_by_device:
+                # Not our start: no minimum on-time to wait for (the car just plugged in at night
+                # must be stoppable at once), and it does not count as one of our starts
+                st.t_on = None
+                if st.starts:
+                    st.starts.pop()
             msg = self.sup.observe_measured(st, cfg.params, di.measured, inp.now)
             if msg and self._managed(name, di):
                 out.notifications.append((f"{name}:not_absorbing", f"{name}: {msg}; se reintentará más tarde"))
