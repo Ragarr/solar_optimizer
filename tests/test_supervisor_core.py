@@ -377,3 +377,17 @@ def test_manual_car_is_not_driven_by_the_planner():
     house.inputs_extra["car"] = {"held_level": 6 * 0.232, "manual": True}
     out = house.run(T0, T0 + 600)
     assert not house.on["car"] and not out.status["car"].held
+
+
+def test_surplus_filter_resets_when_the_controllable_set_changes():
+    """The car goes manual while charging: its power must stop counting as surplus at once, not
+    after the 2 min window has forgotten the old samples"""
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=5.0)
+    house.on["car"] = True
+    out = house.run(T0, T0 + 120)
+    assert out.surplus == pytest.approx(4.6, abs=0.2)
+    house.inputs_extra["car"] = {"manual": True}
+    out = house.run(T0 + 120, T0 + 130)
+    # now R includes the car (pv 5.0 - base 0.4 - the car's power); without the reset it stays ~4.4
+    assert out.surplus < 1.0
