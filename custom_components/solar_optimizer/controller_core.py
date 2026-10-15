@@ -110,6 +110,7 @@ class Controller:
         self.g = GlobalState()
         self.filter = TimeWindowAverage(self.cp.smoothing_window)
         self._last_values: dict[str, tuple[float, float]] = {}
+        self._ctrl_set: tuple[str, ...] | None = None
         self._day: str | None = None
 
     # ------------------------------------------------------------------ persistence
@@ -214,6 +215,12 @@ class Controller:
         e = self.surplus_now(inp)
         if e is None:
             return None
+        # Ê counts the controllable consumers' own power: when that set changes (a device goes
+        # manual, or the charge planner takes the car) the old samples no longer describe it
+        ctrl_set = tuple(sorted(n for n, di in inp.devices.items() if n in self.states and self._controllable(n, di)))
+        if self._ctrl_set is not None and ctrl_set != self._ctrl_set:
+            self.filter.reset()
+        self._ctrl_set = ctrl_set
         if self.g.last_command is None or inp.now - self.g.last_command >= self.cp.discard_after_command:
             self.filter.add(inp.now, e)
         return e
