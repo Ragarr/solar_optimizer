@@ -229,6 +229,7 @@ class SupervisorRuntime:
                 measured=None if measured is None else measured / 1000,
                 force_level=None if force is None else force / 1000,
                 held_level=self.planner.held_level(d.name),
+                self_acting=bool(getattr(d, "device_acts_on_its_own", False)),
             )
         return Inputs(
             now=now.timestamp(),

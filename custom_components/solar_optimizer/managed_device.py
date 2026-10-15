@@ -630,6 +630,18 @@ class ManagedDevice:
             return "same"
         return "manual"
 
+    @property
+    def device_acts_on_its_own(self) -> bool:
+        """True while the "ignore changes" template renders true: what the device does now is its
+        own doing (a charger that starts when the car is plugged), not a decision of ours"""
+        if self._manual_ignore_template is None:
+            return False
+        try:
+            return self._manual_ignore_template.async_render(context={}) is True
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.warning("%s - manual ignore template failed: %s", self.name, err)
+            return False
+
     def _coordinator_foreign_users(self) -> set[str]:
         return set(getattr(self._coordinator, "foreign_user_ids", None) or ())
 
