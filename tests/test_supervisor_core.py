@@ -446,3 +446,14 @@ def test_our_own_start_keeps_the_minimum_on_time_even_if_the_flag_is_on():
     house.run(T0 + 300, T0 + 2400)
     offs = [t for t, c in house.log if c.device == "car" and c.kind == "off"]
     assert offs and offs[0] - ons[0] >= 600
+
+
+@pytest.mark.parametrize("panel, expected", [({}, "ac1"), ({"ac2": {"value": 0.12}}, "ac2"), ({"ac1": {"value": 0.05}}, "ac2")])
+def test_panel_value_overrides_the_configured_one(panel, expected):
+    """Surplus for one air conditioner only: the value set in the panel decides which one (ac1 is
+    configured at 0.09 and ac2 at 0.08)"""
+    ctrl = controller()
+    house = House(ctrl, base=0.4, pv=1.4)
+    house.inputs_extra = {"car": {"available": False}, **panel}
+    house.run(T0, T0 + 300)
+    assert {c.device for _, c in house.commands(kind="on")} == {expected}
