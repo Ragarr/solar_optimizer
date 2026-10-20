@@ -188,3 +188,30 @@ def test_reasons():
     out = house.run(T0 + 1200, T0 + 1500)
     assert reasons(out)["ac1"] == "T_off"
     assert "puede arrancar en" in out.status["ac1"].reason
+
+
+def test_device_unreachable_since_the_start_spoils_nothing():
+    """The charger offline the whole time, also when the controller starts (a restart) inside the
+    windows of ac1's start: the step is still valid"""
+    ctrl = controller()
+    house = AcHouse(ctrl, 0.4, base=0.3, pv=1.5)
+    house.inputs_extra = {"car": {"reachable": False}, "ac1": {"available": False}, "ac2": {"available": False}}
+    house.run(T0 - 60, T0)  # the controller starts 3 min before ac1's command (T0 + 120)
+    del house.inputs_extra["ac1"]
+    house.run(T0, T0 + 1200)
+    ((t_on, _),) = house.commands("ac1", "on")
+    assert t_on == T0 + 120
+    assert ctrl.states["ac1"].est_steps == 1
+
+
+def test_device_losing_the_connection_spoils_the_steps():
+    ctrl = controller()
+    house = AcHouse(ctrl, 0.4, base=0.3, pv=1.5)
+    house.inputs_extra = {"car": {"available": False}, "ac1": {"available": False}, "ac2": {"available": False}}
+    house.run(T0 - 600, T0)
+    del house.inputs_extra["ac1"]
+    house.run(T0, T0 + 200)
+    house.inputs_extra["car"] = {"reachable": False}
+    house.run(T0 + 200, T0 + 1200)
+    assert house.commands("ac1", "on")
+    assert ctrl.states["ac1"].est_steps == 0
