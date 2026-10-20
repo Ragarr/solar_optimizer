@@ -123,7 +123,7 @@ class Controller:
         self._ctrl_set: tuple[str, ...] | None = None
         self._day: str | None = None
         self.estimator = PowerEstimator()
-        self._unreachable: set[str] = set()
+        self._reachable: dict[str, bool] = {}  # last reachability seen of each consumer
 
     # ------------------------------------------------------------------ persistence
 
@@ -222,16 +222,19 @@ class Controller:
     def observe(self, inp: Inputs, out: Output) -> None:
         for name, cfg in self.devices.items():
             di = inp.devices.get(name)
-            if di is None or not di.reachable:
-                if name not in self._unreachable:
+            reachable = di is not None and di.reachable
+            # Only a real loss or recovery of the connection counts as a change: one already
+            # unreachable when the controller starts (a restart, a reload) has changed nothing
+            prev = self._reachable.get(name)
+            self._reachable[name] = reachable
+            if not reachable:
+                if prev:
                     # Its state is unknown meanwhile: no step of anyone can be trusted around it
-                    self._unreachable.add(name)
                     self.estimator.drop(name)
                     self.estimator.change(name, inp.now)
                 continue
-            back = name in self._unreachable
+            back = prev is False
             if back:
-                self._unreachable.discard(name)
                 self.estimator.change(name, inp.now)
             st = self.states[name]
             was_on, was_level = st.on, st.level
