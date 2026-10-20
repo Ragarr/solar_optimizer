@@ -56,6 +56,7 @@ class DeviceInput:
     force_level: float | None = None  # forced level (off-peak minimum, start_device)
     held_level: float | None = None  # held by the charge planner: the level it asks (kW)
     self_acting: bool = False  # the device acts on its own now (e.g. a charger starting when plugged)
+    value: float | None = None  # v_i of the current tariff period set in the panel (€/kWh); None: configured
 
 
 @dataclass
@@ -203,9 +204,15 @@ class Controller:
             di = inp.devices.get(name)
             if di is None or not self._managed(name, di):
                 continue
-            value = cfg.value_peak if not inp.offpeak or cfg.value_offpeak is None else cfg.value_offpeak
-            out.append((name, self.states[name], cfg.params, value))
+            out.append((name, self.states[name], cfg.params, self._value(cfg, di, inp.offpeak)))
         return out
+
+    @staticmethod
+    def _value(cfg: DeviceConfig, di: DeviceInput, offpeak: bool) -> float:
+        """v_i now: the panel's value for the tariff period, or the configured one"""
+        if di.value is not None:
+            return di.value
+        return cfg.value_offpeak if offpeak and cfg.value_offpeak is not None else cfg.value_peak
 
     def _car(self):
         return next((n for n, c in self.devices.items() if c.is_car), None)
@@ -379,7 +386,7 @@ class Controller:
                 forced = tuple(x for x in levels if abs(x - di.force_level) < 1e-3)
                 if forced:
                     levels = forced
-            value = cfg.value_offpeak if inp.offpeak and cfg.value_offpeak is not None else cfg.value_peak
+            value = self._value(cfg, di, inp.offpeak)
             current = st.level if st.on else 0.0
             est = self.estimated(name, di)
             if est is not None:
