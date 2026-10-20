@@ -330,6 +330,65 @@ def test_flicker_within_echo_window_is_ignored():
     assert st.on and st.t_off is None and st.starts == [T0 + 30]
 
 
+def _cloud_timeline(kind, reports, until=T0 + 180):
+    """The cycle sends `kind` to ac1 at T0 and air_cloud reports `reports` [(t, on), ...]. As in
+    Home Assistant: the fast path runs on every grid measure (every 10 s, from T0 + 6) and the cycle
+    every 30 s. Dry run around it, so the only command is this one."""
+    ctrl = controller()
+    st = ctrl.states["ac1"]
+    initial = kind == "off"
+
+    def inputs(t):
+        on = initial
+        for tt, v in reports:
+            if t >= tt:
+                on = v
+        devices = {"car": DeviceInput(available=False), "ac1": DeviceInput(on=on, available=kind == "on"), "ac2": DeviceInput(available=False)}
+        return Inputs(now=t, net=-1.5 + 0.001 * (t % 7), production=1.9 + 0.001 * (t % 5), price_import=PEAK, price_export=SELL, offpeak=False, limit=4.14, alphas={1: 0.0, 2: 1.0}, devices=devices)
+
+    for t in range(int(T0 - 1800), int(T0), 30):
+        ctrl.step(inputs(float(t)), dry_run=True)
+    starts_before = list(st.starts)
+    ctrl.sup.register(Command("ac1", kind, 0.8 if kind == "on" else 0.0, "test"), st, ctrl.g, T0)
+    events = [(T0 + 6 + 10 * k, "fast") for k in range(int((until - T0) // 10))] + [(T0 + 30 * k, "step") for k in range(1, int((until - T0) // 30) + 1)]
+    for t, path in sorted(events):
+        inp = inputs(float(t))
+        if path == "step":
+            ctrl.step(inp, dry_run=True)
+        else:
+            ctrl.fast(inp, dry_run=True)
+    return ctrl, st, starts_before
+
+
+@pytest.mark.parametrize(
+    "off_after, back_after",
+    [(8, 1), (8, 61), (7, 6), (8, 39), (8, 1)],
+    ids=["comedor-18-10-11h14", "comedor-18-10-12h43", "comedor-19-10-17h20", "comedor-20-10-15h10", "raul-10-10-16h19"],
+)
+def test_cloud_flicker_after_the_verification_is_ignored(off_after, back_after):
+    """air_cloud, ~8 s after showing the start, reports a stale "off" for 1-61 s (real cases of
+    Oct 2026). The cycle verifies the command in between: the stale state must still be ignored for
+    the whole echo window, not count as a stop and a second start."""
+    on_at = T0 + 6
+    ctrl, st, _ = _cloud_timeline("on", [(on_at, True), (on_at + off_after, False), (on_at + off_after + back_after, True)])
+    assert st.on and st.t_off is None
+    assert st.starts == [on_at] and st.t_on == on_at
+    assert [d for _, d in ctrl.estimator._changes] == ["ac1"]  # one transition for the estimator
+
+
+def test_cloud_flicker_after_a_stop_is_ignored():
+    """The same after an OFF command: a stale "on" is not a start"""
+    ctrl, st, starts_before = _cloud_timeline("off", [(T0 + 6, False), (T0 + 14, True), (T0 + 53, False)])
+    assert not st.on and st.t_off == T0 + 6
+    assert st.starts == starts_before
+
+
+def test_real_change_after_the_echo_window_counts():
+    """A stop seen after the echo window (90 s) is a real stop"""
+    ctrl, st, _ = _cloud_timeline("on", [(T0 + 6, True), (T0 + 120, False)])
+    assert not st.on and st.t_off == T0 + 120 and st.starts == [T0 + 6]
+
+
 # ---------------------------------------------------------------------- held by the charge planner
 
 

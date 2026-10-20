@@ -137,7 +137,7 @@ class Controller:
             if name not in self.states:
                 continue
             st = DeviceState.from_dict(saved)
-            st.pending = None
+            st.pending = st.echo = None
             st.obj_on, st.since = None, None
             if real_on is not None and name in real_on and real_on[name] != st.on:
                 st.on = real_on[name]
@@ -240,9 +240,13 @@ class Controller:
             was_on, was_level = st.on, st.level
             on = di.on
             pend = st.pending
-            if pend is not None and pend["kind"] in (ON, OFF) and inp.now - pend["t"] < cfg.params.echo_window and on != (pend["kind"] == ON):
+            echo = st.echo
+            if echo is not None and inp.now - echo["t"] >= cfg.params.echo_window:
+                st.echo = echo = None
+            if echo is not None and on != (echo["kind"] == ON):
                 # Within the echo window only a change towards the commanded value counts: going
-                # back to the previous value is a flicker of the device (cloud devices do it)
+                # back to the previous value is a flicker of the device (cloud devices do it, also
+                # after the command has been verified)
                 on = st.on
             started_by_device = on and not st.on and di.self_acting and (pend is None or pend["kind"] != ON)
             self.sup.observe(st, cfg.params, on, di.level, inp.now)

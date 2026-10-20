@@ -101,6 +101,10 @@ class DeviceState:
     last_command: float | None = None
     last_level_change: float | None = None
     pending: dict | None = None  # command waiting to be verified
+    # last ON/OFF command {"kind", "t"}: a reported state going back to the previous one within the
+    # echo window is a flicker. Apart from `pending`, which the verification clears as soon as the
+    # command looks applied (cloud devices may report a stale state after that)
+    echo: dict | None = None
     faulty: bool = False
     low_since: float | None = None  # measured power under the threshold since (not absorbing)
     not_absorbing_until: float | None = None
@@ -300,6 +304,8 @@ class Supervisor:
         g.last_command = now
         attempt = (dev.pending or {}).get("attempt", 0) if cmd.retry else 0
         dev.pending = {"kind": cmd.kind, "value": cmd.value, "t": now, "attempt": attempt, "retry_at": None}
+        if cmd.kind in (ON, OFF):
+            dev.echo = {"kind": cmd.kind, "t": now}
         if cmd.kind == ON:
             g.last_start = now
         if cmd.kind == LEVEL:
