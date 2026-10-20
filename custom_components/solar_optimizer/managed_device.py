@@ -49,6 +49,7 @@ from .const import (
     CONF_MANUAL_IGNORE_TEMPLATE,
     CONF_LEVEL_POWER_MAP,
     CONF_MANUAL_END_WHEN_OFF,
+    CONF_USE_ESTIMATED_POWER,
     DEFAULT_VALUE,
     DEFAULT_CONFIRM_ON_MIN,
     DEFAULT_CONFIRM_OFF_MIN,
@@ -332,6 +333,8 @@ class ManagedDevice:
         self._level_power_map: dict[float, float] = _parse_level_map(device_config.get(CONF_LEVEL_POWER_MAP))
         # The manual mode of a device switched on by hand ends when it is switched off again
         self._manual_end_when_off: bool = bool(device_config.get(CONF_MANUAL_END_WHEN_OFF, False))
+        # On/off device without a measure: count the power estimated from its steps, not the nominal
+        self._use_estimated_power: bool = bool(device_config.get(CONF_USE_ESTIMATED_POWER, False))
         self._manual_started_on: bool = False
         self._manual_off_since: datetime | None = None
 
@@ -708,6 +711,7 @@ class ManagedDevice:
             verify_after=self._verify_after_sec,
             echo_window=self._echo_window_sec,
             not_absorbing_kw=None if self._not_absorbing_w is None else self._not_absorbing_w / 1000,
+            use_estimated=self._use_estimated_power,
         )
 
     def level_w(self) -> float | None:

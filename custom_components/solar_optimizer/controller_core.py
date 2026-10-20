@@ -10,6 +10,10 @@ or faulty are not controllable: their consumption stays in R. Neither is a consu
 charge planner (the car while it plans "X % at time t"): its consumption stays in R too, but the
 supervisor still commands it (the planner's level), verifies it and sheds it.
 
+An on/off consumer without a measure counts its nominal level, unless it is configured to use the
+power estimated from the steps it leaves in the house consumption (power_estimator). The estimate is
+always computed and published, so it can be checked before using it.
+
 Ê is the time-weighted mean of E over the smoothing window (2 min); samples taken right after a
 command are discarded (the measures are still moving). E+ = max(0, Ê). The import margin H is the
 contracted limit minus the import the house would have without the controllable consumers (the
@@ -21,6 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .optimizer_core import Consumer, Group, Plan, water_fill
+from .power_estimator import PowerEstimator, Rejected, Step
 from .smoothing import TimeWindowAverage
 from .supervisor_core import EPS, LEVEL, OFF, ON, Command, DeviceParams, DeviceState, GlobalParams, GlobalState, Supervisor, Violation
 
@@ -76,6 +81,8 @@ class DeviceStatus:
     start_at: float | None = None
     stop_at: float | None = None
     held: bool = False
+    reason: str = ""  # why it is (or will be) on or off, for the decision log
+    reason_key: str = ""  # the same without countdowns: changes only when the reason changes
 
 
 @dataclass
@@ -89,6 +96,7 @@ class Output:
     status: dict[str, DeviceStatus] = field(default_factory=dict)
     notifications: list[tuple[str, str]] = field(default_factory=list)  # (key, text)
     violations: list[Violation] = field(default_factory=list)
+    estimates: list[Step | Rejected] = field(default_factory=list)  # power steps evaluated this cycle
     mode: str = "ok"  # ok | warmup | hold | safe
 
 
@@ -113,6 +121,8 @@ class Controller:
         self._last_values: dict[str, tuple[float, float]] = {}
         self._ctrl_set: tuple[str, ...] | None = None
         self._day: str | None = None
+        self.estimator = PowerEstimator()
+        self._unreachable: set[str] = set()
 
     # ------------------------------------------------------------------ persistence
 
@@ -154,11 +164,22 @@ class Controller:
     def _held(self, name: str, di: DeviceInput) -> bool:
         return self._managed(name, di) and di.held_level is not None
 
+    def estimated(self, name: str, di: DeviceInput) -> float | None:
+        """The estimated power (kW) when the consumer is configured to use it instead of its
+        nominal level (on/off and without a measure); None otherwise"""
+        st, p = self.states[name], self.devices[name].params
+        if not p.use_estimated or p.modulable or di.measured is not None:
+            return None
+        return st.est
+
     def _y(self, name: str, di: DeviceInput) -> float:
         st = self.states[name]
         if di.measured is not None:
             return max(0.0, di.measured)
-        return st.level if st.on else 0.0
+        if not st.on:
+            return 0.0
+        est = self.estimated(name, di)
+        return st.level if est is None else est
 
     def surplus_now(self, inp: Inputs) -> float | None:
         if inp.net is None:
@@ -195,8 +216,18 @@ class Controller:
         for name, cfg in self.devices.items():
             di = inp.devices.get(name)
             if di is None or not di.reachable:
+                if name not in self._unreachable:
+                    # Its state is unknown meanwhile: no step of anyone can be trusted around it
+                    self._unreachable.add(name)
+                    self.estimator.drop(name)
+                    self.estimator.change(name, inp.now)
                 continue
+            back = name in self._unreachable
+            if back:
+                self._unreachable.discard(name)
+                self.estimator.change(name, inp.now)
             st = self.states[name]
+            was_on, was_level = st.on, st.level
             on = di.on
             pend = st.pending
             if pend is not None and pend["kind"] in (ON, OFF) and inp.now - pend["t"] < cfg.params.echo_window and on != (pend["kind"] == ON):
@@ -205,6 +236,15 @@ class Controller:
                 on = st.on
             started_by_device = on and not st.on and di.self_acting and (pend is None or pend["kind"] != ON)
             self.sup.observe(st, cfg.params, on, di.level, inp.now)
+            if st.on != was_on:
+                kind = ON if st.on else OFF
+                if back or cfg.params.modulable or di.measured is not None:
+                    self.estimator.change(name, inp.now)
+                else:
+                    ours = pend is not None and pend["kind"] == kind and inp.now - pend["t"] < 2 * cfg.params.verify_after
+                    self.estimator.transition(name, kind, inp.now, pend["t"] if ours else None)
+            elif abs(st.level - was_level) > EPS and cfg.params.modulable:
+                self.estimator.change(name, inp.now)
             if started_by_device:
                 # Not our start: no minimum on-time to wait for (the car just plugged in at night
                 # must be stoppable at once), and it does not count as one of our starts
@@ -223,6 +263,11 @@ class Controller:
         e = self.surplus_now(inp)
         if e is None:
             return None
+        if inp.production is not None:
+            # House consumption for the steps, without the measured consumers (the car's own
+            # changes of power do not spoil the steps of the others)
+            measured = sum(max(0.0, di.measured) for di in inp.devices.values() if di.measured is not None)
+            self.estimator.add(inp.now, inp.net - measured, inp.production)
         # Ê counts the controllable consumers' own power: when that set changes (a device goes
         # manual, or the charge planner takes the car) the old samples no longer describe it
         ctrl_set = tuple(sorted(n for n, di in inp.devices.items() if n in self.states and self._controllable(n, di)))
@@ -274,6 +319,7 @@ class Controller:
         self.observe(inp, out)
         e_inst = self.add_sample(inp)
         out.surplus_inst = e_inst
+        self._estimate(now, out)
 
         # Sensors: unavailable or frozen -> hold; for long -> safe state
         sunny = inp.production is not None and inp.production > self.cp.frozen_production_kw
@@ -334,7 +380,13 @@ class Controller:
                 if forced:
                     levels = forced
             value = cfg.value_offpeak if inp.offpeak and cfg.value_offpeak is not None else cfg.value_peak
-            consumers.append(Consumer(name, cfg.group, levels, value, st.level if st.on else 0.0))
+            current = st.level if st.on else 0.0
+            est = self.estimated(name, di)
+            if est is not None:
+                # The optimiser sees the estimated power; the supervisor keeps the nominal level
+                levels = tuple(est if x > EPS else 0.0 for x in levels)
+                current = est if st.on else 0.0
+            consumers.append(Consumer(name, cfg.group, levels, value, current))
         for gid in sorted({c.group for c in consumers} | set(inp.alphas)):
             groups.append(Group(gid, inp.alphas.get(gid, 0.0), inp.caps.get(gid)))
 
@@ -347,6 +399,8 @@ class Controller:
         for c in consumers:
             st, cfg = self.states[c.id], self.devices[c.id]
             planned = plan.levels.get(c.id, 0.0)
+            if planned > EPS and self.estimated(c.id, inp.devices[c.id]) is not None:
+                planned = cfg.params.min_level
             cmd = self.sup.decide(c.id, st, cfg.params, self.g, planned, now, dry_run)
             if cmd is not None and not warm:
                 self._emit(cmd, inp, out, dry_run)
@@ -375,13 +429,26 @@ class Controller:
                 self._emit(cmd, inp, out, dry_run)
         return held
 
+    def _estimate(self, now: float, out: Output) -> None:
+        """Apply the power steps whose windows are complete"""
+        for res in self.estimator.evaluate(now):
+            out.estimates.append(res)
+            st = self.states.get(res.device)
+            if st is None or not isinstance(res, Step):
+                continue
+            if res.kind == ON:
+                st.est_on = self.estimator.update(st.est_on, res.kw)
+            else:
+                st.est_off = self.estimator.update(st.est_off, res.kw)
+            st.est_steps += 1
+
     def _status(self, inp: Inputs, out: Output, plan: Plan | None, consumers=None, held: dict[str, float] | None = None) -> None:
         levels = {c.id: c.levels for c in consumers or []}
         held = held or {}
         for name, cfg in self.devices.items():
             st = self.states[name]
             di = inp.devices.get(name)
-            out.status[name] = DeviceStatus(
+            status = DeviceStatus(
                 levels=levels.get(name, ()),
                 planned=held[name] if name in held else (plan.levels.get(name, 0.0) if plan else 0.0),
                 controllable=di is not None and self._controllable(name, di),
@@ -389,6 +456,60 @@ class Controller:
                 start_at=self.sup.start_possible_at(st, cfg.params, self.g, inp.now),
                 stop_at=self.sup.stop_possible_at(st, cfg.params, inp.now),
             )
+            status.reason_key, status.reason = self._reason(name, di, status, plan is not None, inp.now)
+            out.status[name] = status
+
+    def _reason(self, name: str, di: DeviceInput | None, status: DeviceStatus, planned_now: bool, now: float) -> tuple[str, str]:
+        """(key, text): why the consumer is on or off. The key has no countdowns, so it only
+        changes when the reason does."""
+        st, p = self.states[name], self.devices[name].params
+
+        def left(t: float | None) -> str:
+            return f"{max(0, round((t - now) / 60))} min" if t is not None else "?"
+
+        if di is None:
+            return "sin datos", "sin datos"
+        if not di.included:
+            return "excluido", "excluido del plan"
+        if not di.reachable:
+            return "offline", "sin conexión"
+        if di.manual:
+            return "manual", "en manual"
+        if st.faulty:
+            return "averiado", "averiado hasta el reinicio diario"
+        if status.held:
+            return "plan de carga", f"plan de carga ({round(status.planned * 1000)} W)"
+        if st.pending is not None:
+            return "orden", f"orden {st.pending['kind']} pendiente de confirmar"
+        if not planned_now:
+            return "sin plan", "sin plan (sensores sin datos o arrancando)"
+        want = status.planned > EPS
+        held_for = now - st.since if st.since is not None and st.obj_on == want else 0.0
+        if st.on and want:
+            return "en marcha", "en marcha según el plan"
+        if not st.on and not want:
+            if not di.available:
+                return "no disponible", "no disponible (no lo pide)"
+            if st.not_absorbing_until is not None:
+                return "no absorbe", f"no absorbe, reintento en {left(st.not_absorbing_until)}"
+            if status.start_at is not None and status.start_at > now + EPS:
+                if st.t_off is not None and now - st.t_off < p.min_off:
+                    return "T_off", f"parado hace poco, puede arrancar en {left(status.start_at)}"
+                if self.sup.starts_last_hour(st, now) >= p.max_starts_per_hour:
+                    return "arranques/h", f"máximo de arranques por hora, puede en {left(status.start_at)}"
+                return "separación", "separación entre arranques"
+            return "excedente", "no compensa con el excedente actual"
+        if want:  # off, the plan wants it on
+            if held_for < p.confirm_on:
+                return "confirmando arranque", f"confirmando arranque {held_for / 60:.1f}/{p.confirm_on / 60:.0f} min"
+            return "arrancando", "arranque en curso"
+        # on, the plan wants it off
+        why = "no disponible" if not di.available else "no compensa"
+        if status.stop_at is not None and status.stop_at > now + EPS:
+            return f"T_on ({why})", f"{why}; tiempo mínimo encendido, puede parar en {left(status.stop_at)}"
+        if held_for < p.confirm_off:
+            return f"confirmando parada ({why})", f"{why}; confirmando parada {held_for / 60:.1f}/{p.confirm_off / 60:.0f} min"
+        return "parando", "parada en curso"
 
     # ------------------------------------------------------------------ commands
 

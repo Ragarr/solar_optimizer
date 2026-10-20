@@ -103,7 +103,8 @@
                     "not_absorbing_w": "Not absorbing threshold (W)",
                     "manual_ignore_template": "Ignore changes template",
                     "manual_end_at_reset": "End the manual mode at the daily reset",
-                    "manual_end_when_off": "End the manual mode when switched off"
+                    "manual_end_when_off": "End the manual mode when switched off",
+                    "use_estimated_power": "Use the estimated power"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -136,7 +137,8 @@
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
                     "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
                     "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)",
-                    "manual_end_when_off": "If checked, a device switched on by hand goes back to automatic once it has been off for 60 s"
+                    "manual_end_when_off": "If checked, a device switched on by hand goes back to automatic once it has been off for 60 s",
+                    "use_estimated_power": "On/off devices without a measured power only: count the power estimated from the step of the house consumption when it starts and stops, instead of the max power. Unchecked, the estimate is only computed and published"
                 }
             },
             "powered_device": {
@@ -323,7 +325,8 @@
                     "not_absorbing_w": "Not absorbing threshold (W)",
                     "manual_ignore_template": "Ignore changes template",
                     "manual_end_at_reset": "End the manual mode at the daily reset",
-                    "manual_end_when_off": "End the manual mode when switched off"
+                    "manual_end_when_off": "End the manual mode when switched off",
+                    "use_estimated_power": "Use the estimated power"
                 },
                 "data_description": {
                     "name": "The name of the device",
@@ -356,7 +359,8 @@
                     "not_absorbing_w": "Optional: on with a level but drawing less than this for 2.5 min -> left out for 30 min (e.g. full car)",
                     "manual_ignore_template": "Optional template: changes seen while it renders true are made by the device itself, not manual (e.g. a charger that starts when plugged)",
                     "manual_end_at_reset": "If unchecked, the manual mode only ends with the maximal duration, the release template or the back-to-automatic button (e.g. an air conditioner switched on at night is not switched off at the reset time)",
-                    "manual_end_when_off": "If checked, a device switched on by hand goes back to automatic once it has been off for 60 s"
+                    "manual_end_when_off": "If checked, a device switched on by hand goes back to automatic once it has been off for 60 s",
+                    "use_estimated_power": "On/off devices without a measured power only: count the power estimated from the step of the house consumption when it starts and stops, instead of the max power. Unchecked, the estimate is only computed and published"
                 }
             },
             "powered_device": {
