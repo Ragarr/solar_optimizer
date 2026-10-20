@@ -161,6 +161,7 @@ managed_device_schema = vol.Schema(
             selector.NumberSelectorConfig(min=0, max=10000, step=10, unit_of_measurement="W", mode=selector.NumberSelectorMode.BOX)
         ),
         vol.Optional(CONF_MANUAL_IGNORE_TEMPLATE): str,
+        vol.Optional(CONF_USE_ESTIMATED_POWER, default=False): cv.boolean,
     }
 )
 

@@ -63,6 +63,7 @@ class DeviceParams:
     not_absorbing_kw: float | None = None  # below this measured power while ON -> not absorbing
     not_absorbing_after: float = 150.0
     not_absorbing_retry: float = 1800.0
+    use_estimated: bool = False  # on/off without a measure: count its estimated power, not the nominal
 
     @property
     def modulable(self) -> bool:
@@ -103,6 +104,15 @@ class DeviceState:
     faulty: bool = False
     low_since: float | None = None  # measured power under the threshold since (not absorbing)
     not_absorbing_until: float | None = None
+    est_on: float | None = None  # power estimated from the steps at its starts (kW) ...
+    est_off: float | None = None  # ... and at its stops (power_estimator)
+    est_steps: int = 0  # accepted steps
+
+    @property
+    def est(self) -> float | None:
+        """Estimated power (kW): the mean of the start and stop estimates available"""
+        values = [x for x in (self.est_on, self.est_off) if x is not None]
+        return sum(values) / len(values) if values else None
 
     def to_dict(self) -> dict:
         return asdict(self)

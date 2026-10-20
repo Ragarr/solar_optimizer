@@ -44,14 +44,19 @@ from .const import (
 )
 from .charge_planner_runtime import ChargePlannerRuntime
 from .controller_core import Controller, ControllerParams, DeviceConfig, DeviceInput, Inputs, Output
+from .power_estimator import Step
 from .supervisor_core import LEVEL, OFF, ON, GlobalParams
 
 if TYPE_CHECKING:
     from .managed_device import ManagedDevice
 
 _LOGGER = logging.getLogger(__name__)
+# One line per cycle when the decision changes (plan, mode, reason of a device), and a summary
+# every DECISION_SUMMARY_SEC. Shown at INFO level.
+_DECISIONS = logging.getLogger(__name__.rsplit(".", 1)[0] + ".decisions")
 
 NOTIFY_REPEAT_SEC = 1800
+DECISION_SUMMARY_SEC = 600
 
 
 def _float_state(hass: HomeAssistant, entity_id: str | None) -> float | None:
@@ -105,7 +110,9 @@ class SupervisorRuntime:
         self.last_output: Output | None = None
         self.last_inputs: Inputs | None = None
         self.foreign_user_ids: set[str] = set()
-        self.planner = ChargePlannerRuntime(hass, self, (hass.data.get(DOMAIN) or {}).get("charge_planner"))
+        self._decision_key = None
+        self._decision_logged_at = 0.0
+        self.planner =ChargePlannerRuntime(hass, self, (hass.data.get(DOMAIN) or {}).get("charge_planner"))
 
     # ------------------------------------------------------------------ setup
 
@@ -257,8 +264,51 @@ class SupervisorRuntime:
             out = controller.step(inputs, self.dry_run)
             self.last_output, self.last_inputs = out, inputs
             await self._execute(out)
+        self._log_decision(out, inputs)
         await self._notify_all(out)
         return self.published(out, inputs)
+
+    def _log_decision(self, out: Output, inputs: Inputs) -> None:
+        """The decision log: what the optimiser decided and why"""
+        controller = self.controller
+        for res in out.estimates:
+            if isinstance(res, Step):
+                st = controller.states.get(res.device)
+                est = st.est if st is not None else None
+                _DECISIONS.info("%s: escalón al %s de %.2f kW aceptado (estimación %s kW)", res.device, "encender" if res.kind == ON else "apagar", res.kw, "—" if est is None else f"{est:.2f}")
+            else:
+                _DECISIONS.info("%s: escalón al %s descartado: %s", res.device, "encender" if res.kind == ON else "apagar", res.why)
+        if not _DECISIONS.isEnabledFor(logging.INFO):
+            return
+        names = [d.name for d in self.coordinator.devices]
+        key = (out.mode, _plan_text(out.plan, self.coordinator.devices), tuple((n, out.status[n].reason_key) for n in names if n in out.status))
+        if key == self._decision_key and inputs.now - self._decision_logged_at < DECISION_SUMMARY_SEC:
+            return
+        self._decision_key, self._decision_logged_at = key, inputs.now
+
+        def kw(x):
+            return "—" if x is None else f"{x:.2f}"
+
+        parts = []
+        for name in names:
+            status, st = out.status.get(name), controller.states.get(name)
+            if status is None or st is None:
+                continue
+            est = f" est {st.est:.2f}" if st.est is not None else ""
+            parts.append(f"{name} {'on' if st.on else 'off'}{est}: {status.reason}")
+        alphas = ",".join(f"{g}:{a:.2f}" for g, a in sorted(inputs.alphas.items()))
+        _DECISIONS.info(
+            "modo=%s P=%s red=%s E=%s Ê=%s H=%s α=%s plan=%s | %s",
+            out.mode,
+            kw(inputs.production),
+            kw(inputs.net),
+            kw(out.surplus_inst),
+            kw(out.surplus),
+            kw(out.margin),
+            alphas,
+            _plan_text(out.plan, self.coordinator.devices),
+            " | ".join(parts),
+        )
 
     @callback
     def _on_grid_change(self, event: Event) -> None:
@@ -320,7 +370,9 @@ class SupervisorRuntime:
                 mode = "auto"
             measured = d.measured_w()
             on = bool(st.on) if st is not None else bool(d.is_active)
-            power_w = measured if measured is not None else (st.level * 1000 if st is not None and on else 0.0)
+            est = controller.estimated(d.name, inputs.devices[d.name]) if controller and d.name in inputs.devices else None
+            nominal = (est if est is not None else st.level) if st is not None and on else 0.0
+            power_w = measured if measured is not None else nominal * 1000
             start_at = status.start_at if status else None
             stop_at = status.stop_at if status else None
             devices[d.name] = {
@@ -337,6 +389,9 @@ class SupervisorRuntime:
                 "start_possible_at": _iso(status.start_at if status else None, d),
                 "stop_possible_at": _iso(status.stop_at if status else None, d),
                 "not_absorbing_until": _iso(st.not_absorbing_until if st else None, d),
+                "estimated_w": None if st is None or st.est is None else round(st.est * 1000),
+                "estimated_steps": st.est_steps if st is not None else 0,
+                "reason": status.reason if status else "",
             }
         commands = [f"{c.device}: {c.kind}{'' if c.value is None or c.kind == OFF else f' {round(c.value * 1000)} W'} ({c.reason})" for c in out.commands]
         return {
