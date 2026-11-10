@@ -23,6 +23,7 @@ HOUR = 3600.0
 EPS = 1e-6
 WINTER = timezone(timedelta(hours=1))  # the off-peak window of the tariff is in winter time
 SLOT = 900.0
+HALF_HOUR = 1800.0
 MODES = ("fixed", "sun", "away")
 
 
@@ -309,7 +310,8 @@ class PeriodResult:
 
 @dataclass
 class PlanResult:
-    curve: list[tuple[float, float]] = field(default_factory=list)  # (t, battery %) every hour
+    curve: list[tuple[float, float]] = field(default_factory=list)  # (t, battery %) every 30 min
+    hours: list[tuple[int, float, int]] = field(default_factory=list)  # (hour start, sun kW, off-peak 0/1)
     results: list[PeriodResult] = field(default_factory=list)
     pct_end: float | None = None
     pct_min: float | None = None
@@ -364,10 +366,15 @@ def simulate(inp: PlanInputs, p: PlanParams | None = None) -> PlanResult:
     pct = min(100.0, max(0.0, inp.soc))
     res.pct_min = pct
     by_key: dict[tuple, PeriodResult] = {}
-    hour_mark = inp.now
+    mark = inp.now
+    last_hour = None
     res.curve.append((inp.now, round(pct, 1)))
     k = max(inp.kwh_per_pct, EPS)
     for s in slots:
+        hour = int(s.t0 // HOUR * HOUR)
+        if hour != last_hour:
+            last_hour = hour
+            res.hours.append((hour, round(s.sun, 2), 1 if s.offpeak else 0))
         iv = active(intervals, (s.t0 + s.t1) / 2)
         mode = iv.period.mode if iv else None
         key = (iv.period.id, iv.t0) if iv else None
@@ -406,8 +413,8 @@ def simulate(inp: PlanInputs, p: PlanParams | None = None) -> PlanResult:
         res.pct_min = min(res.pct_min, pct)
         if iv:
             by_key[key].pct_end = round(pct, 1)
-        if s.t1 - hour_mark >= HOUR - 1:
-            hour_mark = s.t1
+        if s.t1 - mark >= HALF_HOUR - 1:
+            mark = s.t1
             res.curve.append((s.t1, round(pct, 1)))
     res.results = sorted(by_key.values(), key=lambda r: r.t0)
     res.pct_end = round(pct, 1)

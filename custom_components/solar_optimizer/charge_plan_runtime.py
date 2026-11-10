@@ -384,6 +384,7 @@ class ChargePlanRuntime:
             "periodos": [p.to_dict() for p in self.periods],
             "intervalos": [[r.id, int(r.t0), int(r.t1), r.mode, r.pct_start, r.pct_end, round(r.sun_kwh, 2), round(r.grid_kwh, 2), round(r.cost, 2)] for r in res.results],
             "curva": [[int(t), v] for t, v in res.curve],
+            "horas": [list(h) for h in res.hours],
             "ahora": int(inputs.now),
             "soc_estimado": None if self.soc_now is None else round(self.soc_now, 1),
             "soc_final": res.pct_end,

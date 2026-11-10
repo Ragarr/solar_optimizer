@@ -125,3 +125,15 @@ def test_invalid_periods_are_rejected():
     assert Period.from_dict({"id": "x", "mode": "sun", "start": 10, "end": 5}) is None
     p = Period("x", "fixed", kw=3.5, weekdays=(0, 2), start_min=60, end_min=120)
     assert Period.from_dict(p.to_dict()) == p
+
+
+def test_curve_every_half_hour_and_hourly_sun_and_tariff():
+    now = ts("2026-11-11T08:00")
+    fc = {ts("2026-11-11T12:00"): 4.0}
+    res = simulate(inputs(now, [], forecast=fc, forecast_time=now, confidence=1.0))
+    assert res.curve[1][0] - res.curve[0][0] == 1800
+    hours = {t: (sun, promo) for t, sun, promo in res.hours}
+    assert hours[int(ts("2026-11-11T12:00"))][0] == 4.0
+    assert hours[int(ts("2026-11-11T08:00"))][1] == 1  # 08:00 is off-peak (22:00-12:00)
+    assert hours[int(ts("2026-11-11T13:00"))][1] == 0
+    assert len(res.hours) in (168, 169)

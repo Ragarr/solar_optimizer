@@ -586,7 +586,7 @@ class ChargePlanSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_icon = "mdi:car-clock"
     _attr_should_poll = False
-    _unrecorded_attributes = frozenset({"periodos", "intervalos", "curva", "niveles_kw"})
+    _unrecorded_attributes = frozenset({"periodos", "intervalos", "curva", "horas", "niveles_kw"})
 
     def __init__(self, coordinator):
         self._plan = coordinator.runtime.plan
