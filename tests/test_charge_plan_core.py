@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from custom_components.solar_optimizer.charge_plan_core import (
     HOUR,
     PlanInputs,
+    PlanParams,
     Period,
     expand,
     active,
@@ -109,8 +110,9 @@ def test_sun_period_takes_all_the_surplus():
 def test_gap_gets_only_the_share():
     now = ts("2026-11-11T08:00")
     fc = {ts("2026-11-11T12:00"): 4.0}
-    full = simulate(inputs(now, [], forecast=fc, forecast_time=now, confidence=1.0, share=1.0))
-    half = simulate(inputs(now, [], forecast=fc, forecast_time=now, confidence=1.0, share=0.5))
+    day = PlanParams(horizon=86400.0)  # one day: over weeks both would end at the limit
+    full = simulate(inputs(now, [], forecast=fc, forecast_time=now, confidence=1.0, share=1.0), day)
+    half = simulate(inputs(now, [], forecast=fc, forecast_time=now, confidence=1.0, share=0.5), day)
     assert full.sun_kwh > half.sun_kwh > 0
 
 
@@ -136,4 +138,20 @@ def test_curve_every_half_hour_and_hourly_sun_and_tariff():
     assert hours[int(ts("2026-11-11T12:00"))][0] == 4.0
     assert hours[int(ts("2026-11-11T08:00"))][1] == 1  # 08:00 is off-peak (22:00-12:00)
     assert hours[int(ts("2026-11-11T13:00"))][1] == 0
-    assert len(res.hours) in (168, 169)
+    assert len(res.hours) in (240, 241)  # 10 days published
+    assert len(res.curve) < 1600  # 7 days every 30 min, then hourly
+
+
+
+def test_long_horizon_weekly_periods_are_fast_and_ruled_by_precedence():
+    import time
+
+    now = ts("2026-11-11T08:00")
+    weekly = [Period(f"w{i}", "fixed", kw=2.2, weekdays=tuple(range(7)), start_min=60 * i, end_min=60 * i + 30, updated=i) for i in range(6)]
+    once = Period("o", "away", pct=10, start=ts("2026-12-01T09:00"), end=ts("2026-12-01T18:00"), updated=99)
+    t = time.time()
+    res = simulate(inputs(now, weekly + [once]))
+    assert time.time() - t < 1.0
+    assert res.curve[-1][0] - res.curve[0][0] >= 55 * 86400
+    away = [r for r in res.results if r.id == "o"]
+    assert away and away[0].mode == "away"

@@ -37,6 +37,19 @@ export const timeAt = (day0, row, minute) => { const [y, m, d] = ymd(day0); retu
 export const rowOf = (day0, t) => Math.round((dayStart(t) - day0) / 86400);
 export const snapMin = (m, unit = SNAP / 60) => Math.round(m / unit) * unit;
 
+/** Monday 00:00 of the calendar week containing t, plus `weeks` weeks */
+export const weekStart = (t, weeks = 0) => {
+  const [y, m, d] = ymd(t);
+  const dow = (new Date(y, m, d).getDay() + 6) % 7;
+  return new Date(y, m, d - dow + 7 * weeks).getTime() / 1000;
+};
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+/** "9–15 nov" or "28 dic – 3 ene" for the week starting at day0 */
+export function fmtWeek(day0) {
+  const a = new Date(day0 * 1000), b = new Date(timeAt(day0, 6, 0) * 1000);
+  return a.getMonth() === b.getMonth() ? `${a.getDate()}–${b.getDate()} ${MONTHS[a.getMonth()]}` : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}`;
+}
+
 /** Pieces of [t0, t1) per visible row: {row, m0, m1} in minutes of the day */
 export function segments(day0, t0, t1, rows = ROWS) {
   const out = [];
@@ -131,6 +144,7 @@ class ChargePlanCard extends Base {
     this._sel = null; // period being edited {id, persisted, mode, kw, pct, enabled, weekdays, t0, t1, occ0}
     this._drag = null;
     this._fine = false;
+    this._week = 0; // calendar weeks after the current one
     this._w = 0;
     this._day0 = null;
     this._timer = null;
@@ -138,11 +152,12 @@ class ChargePlanCard extends Base {
     this.shadowRoot.innerHTML = `<style>${ChargePlanCard.css}</style>
       <ha-card>
         <div id="head"></div><div id="help" hidden></div><div id="settings" hidden></div>
+        <div id="nav"></div>
         <div id="wrap"><svg id="svg"><g id="layer"></g></svg></div>
         <div id="panel"></div>
       </ha-card>`;
     const $ = (id) => this.shadowRoot.getElementById(id);
-    this._svg = $('svg'); this._layer = $('layer'); this._panelEl = $('panel'); this._headEl = $('head');
+    this._svg = $('svg'); this._layer = $('layer'); this._panelEl = $('panel'); this._headEl = $('head'); this._navEl = $('nav');
     this._svg.addEventListener('pointerdown', (e) => this._down(e));
     this._svg.addEventListener('pointermove', (e) => this._move(e));
     this._svg.addEventListener('pointerup', (e) => this._up(e));
@@ -169,6 +184,7 @@ class ChargePlanCard extends Base {
     this._hass = hass;
     if (!this._panelInit) { this._panelInit = true; this._drawPanel(); }
     this._drawHead();
+    this._drawNav();
     if (this._showSettings) this._drawSettings();
     if (!this._drag) { this._draw(); this._updateResult(); }
   }
@@ -193,12 +209,12 @@ class ChargePlanCard extends Base {
   _blocks() {
     const a = this._attrs, sel = this._sel, out = [];
     const byId = Object.fromEntries(this._periods().map((p) => [p.id, p]));
-    for (const [id, t0, t1, mode, p0, p1, sun, grid, cost] of a.intervalos || []) {
+    for (const [id, t0, t1, mode, p0, p1, sun, grid, cost, shadow] of a.intervalos || []) {
       const p = byId[id];
       if (!p) continue;
       const weekly = p.weekdays.length > 0;
       if (sel && sel.id === id && (!weekly || (sel.occ0 && sel.occ0.t0 === t0 && sel.occ0.t1 === t1))) continue;
-      out.push({ id, t0, t1, mode, kw: p.kw, pct: p.pct, weekly, p0, p1, cost, enabled: p.enabled, sibling: !!(sel && sel.id === id) });
+      out.push({ id, t0, t1, mode, kw: p.kw, pct: p.pct, weekly, p0, p1, cost, enabled: p.enabled, shadow: shadow === 1 });
     }
     out.sort((x, y) => Number(y.weekly) - Number(x.weekly)); // weekly under one-off
     if (sel) {
@@ -209,7 +225,12 @@ class ChargePlanCard extends Base {
   }
 
   _resultOf(sel) {
-    return (this._attrs.intervalos || []).find((r) => r[0] === sel.id && r[2] > sel.t0 && r[1] < sel.t1) || null;
+    return (this._attrs.intervalos || []).find((r) => r[0] === sel.id && r[2] > sel.t0 && r[1] < sel.t1 && r[4] != null) || null;
+  }
+
+  _covered(sel) {
+    const rows = (this._attrs.intervalos || []).filter((r) => r[0] === sel.id && r[2] > sel.t0 && r[1] < sel.t1);
+    return rows.length > 0 && rows.every((r) => r[4] == null);
   }
 
   _busy(withSel) {
@@ -225,26 +246,38 @@ class ChargePlanCard extends Base {
     return { W, plotW, X: (m) => LBL + (m / 1440) * plotW, Y: (r) => AXIS + r * ROW };
   }
 
+  _weekEnd() { return timeAt(this._day0, 7, 0); }
+
+  /** {hour start: [sun kW, off-peak]} with the last published day repeated beyond the data */
+  _hourly() {
+    const hs = this._attrs.horas || [], map = new Map(), profile = {};
+    for (const [t, sun, promo] of hs) map.set(t, [sun, promo]);
+    for (const [t, sun, promo] of hs.slice(-24)) profile[new Date(t * 1000).getHours()] = [sun, promo];
+    return { map, profile, first: hs.length ? hs[0][0] : Infinity };
+  }
+
   _draw() {
     if (!this._hass || !this._w) return;
     const a = this._attrs, now = this._now;
-    if (!this._drag) this._day0 = dayStart(now);
+    if (!this._drag) this._day0 = weekStart(now, this._week);
     const day0 = this._day0, { W, plotW, X, Y } = this._geo();
+    const hourly = this._hourly(), until = a.prevision_hasta || Infinity;
     let g = '';
-    for (let r = 0; r < ROWS; r++) {
-      if (r % 2 === 0) g += `<rect x="${LBL}" y="${Y(r)}" width="${plotW}" height="${ROW}" fill="rgba(154,156,161,.06)"/>`;
-      const d = new Date(timeAt(day0, r, 0) * 1000);
-      g += `<text x="6" y="${Y(r) + ROW / 2 - 2}" class="dow${r === 0 ? ' today' : ''}">${r === 0 ? 'hoy' : DOW[d.getDay()]}</text><text x="6" y="${Y(r) + ROW / 2 + 13}" class="dnum">${d.getDate()}</text>`;
-    }
     const sunMax = Math.max(1, ...(a.horas || []).map((h) => h[1]));
-    for (const [t, sun, promo] of a.horas || []) {
-      const r = rowOf(day0, t);
-      if (r < 0 || r >= ROWS) continue;
-      const x = X(minuteOf(t)), w = plotW / 24;
-      if (promo) g += `<rect x="${x}" y="${Y(r)}" width="${w}" height="${ROW}" fill="rgba(66,165,245,.11)"/>`;
-      if (sun > 0.05) { const h = (sun / sunMax) * ROW * 0.5; g += `<rect x="${x}" y="${Y(r) + ROW - h}" width="${w}" height="${h}" fill="rgba(255,202,40,.17)"/>`; }
+    for (let r = 0; r < ROWS; r++) {
+      const rs = timeAt(day0, r, 0), re = timeAt(day0, r + 1, 0), d = new Date(rs * 1000), isToday = now >= rs && now < re;
+      if (r % 2 === 0) g += `<rect x="${LBL}" y="${Y(r)}" width="${plotW}" height="${ROW}" fill="rgba(154,156,161,.06)"/>`;
+      g += `<text x="6" y="${Y(r) + ROW / 2 - 2}" class="dow${isToday ? ' today' : ''}">${isToday ? 'hoy' : DOW[d.getDay()]}</text><text x="6" y="${Y(r) + ROW / 2 + 13}" class="dnum${isToday ? ' today' : ''}">${d.getDate()}</text>`;
+      for (let h = 0; h < 24; h++) {
+        const t = timeAt(day0, r, h * 60), e = hourly.map.get(t) || (t > hourly.first ? hourly.profile[h] : null) || (hourly.profile[h] ? [0, hourly.profile[h][1]] : null);
+        if (!e) continue;
+        const x = X(h * 60), w = plotW / 24;
+        if (e[1]) g += `<rect x="${x}" y="${Y(r)}" width="${w}" height="${ROW}" fill="rgba(66,165,245,.11)"/>`;
+        if (e[0] > 0.05) { const hh = (e[0] / sunMax) * ROW * 0.5; g += `<rect x="${x}" y="${Y(r) + ROW - hh}" width="${w}" height="${hh}" fill="rgba(255,202,40,${t >= until ? 0.08 : 0.17})"/>`; }
+      }
+      if (now >= re) g += `<rect x="${LBL}" y="${Y(r)}" width="${plotW}" height="${ROW}" fill="rgba(0,0,0,.22)"/>`;
+      else if (isToday) g += `<rect x="${LBL}" y="${Y(r)}" width="${X(minuteOf(now)) - LBL}" height="${ROW}" fill="rgba(0,0,0,.22)"/>`;
     }
-    g += `<rect x="${LBL}" y="${Y(0)}" width="${X(minuteOf(now)) - LBL}" height="${ROW}" fill="rgba(0,0,0,.22)"/>`;
     for (const h of [0, 6, 12, 18, 24]) {
       const x = X(h * 60);
       g += `<line x1="${x}" x2="${x}" y1="${AXIS - 4}" y2="${AXIS + ROWS * ROW}" class="${h % 24 === 0 ? 'edge' : 'hour'}"/>`;
@@ -255,7 +288,7 @@ class ChargePlanCard extends Base {
     const pts = a.curva || [];
     for (let r = 0; r < ROWS; r++) {
       const lo = timeAt(day0, r, 0), hi = timeAt(day0, r + 1, 0);
-      const row = pts.filter(([t]) => t >= lo - 1800 && t <= hi + 1800).map(([t, p]) => `${X(Math.max(0, Math.min(1440, (t - lo) / 60))).toFixed(1)},${(Y(r) + ROW - 5 - (p / 100) * (ROW - 12)).toFixed(1)}`);
+      const row = pts.filter(([t]) => t >= lo - 3600 && t <= hi + 3600).map(([t, p]) => `${X(Math.max(0, Math.min(1440, (t - lo) / 60))).toFixed(1)},${(Y(r) + ROW - 5 - (p / 100) * (ROW - 12)).toFixed(1)}`);
       if (row.length > 1) g += `<polyline points="${row.join(' ')}" class="curve"/>`;
     }
     for (const b of this._blocks()) g += this._blockSvg(b, day0, X, Y);
@@ -263,6 +296,30 @@ class ChargePlanCard extends Base {
     const nr = rowOf(day0, now);
     if (nr >= 0 && nr < ROWS) g += `<line x1="${X(minuteOf(now))}" x2="${X(minuteOf(now))}" y1="${Y(nr)}" y2="${Y(nr) + ROW}" class="now"/>`;
     this._layer.innerHTML = g;
+  }
+
+  _weekIndex(t) { return Math.round((weekStart(t, 0) - weekStart(this._now, 0)) / (7 * 86400)); }
+
+  _maxWeek() { return this._weekIndex(this._now + (this._attrs.horizonte_dias || 56) * 86400); }
+
+  _gotoWeek(n) {
+    const w = Math.max(0, Math.min(this._maxWeek(), n));
+    if (w === this._week) return;
+    this._flush(); this._sel = null; this._drawPanel();
+    this._week = w; this._drawNav(); this._draw();
+  }
+
+  _drawNav() {
+    const a = this._attrs, now = this._now, day0 = weekStart(now, this._week), max = this._maxWeek();
+    const end = timeAt(day0, 7, 0);
+    const pts = (a.curva || []).filter(([t]) => t <= end);
+    const fin = pts.length && pts[pts.length - 1][0] > day0 ? Math.round(pts[pts.length - 1][1]) : null;
+    const est = a.prevision_hasta != null && day0 >= a.prevision_hasta;
+    const html = `<div class="nav"><button class="ic" data-act="wk:-4" ${this._week < 1 ? 'disabled' : ''} title="4 semanas atrás">«</button><button class="ic" data-act="wk:-1" ${this._week < 1 ? 'disabled' : ''}>‹</button>
+      <div class="wk"><b>${this._week === 0 ? 'Esta semana' : this._week === 1 ? 'Próxima semana' : `Dentro de ${this._week} semanas`}</b><span>${fmtWeek(day0)}${fin != null ? ` · ${fin} % al final` : ''}</span></div>
+      <button class="ic" data-act="wk:1" ${this._week >= max ? 'disabled' : ''}>›</button><button class="ic" data-act="wk:4" ${this._week >= max ? 'disabled' : ''} title="4 semanas adelante">»</button>
+      ${this._week ? '<button class="chip sm" data-act="wk:0">Hoy</button>' : ''}</div>${est ? '<div class="est">☀ Sin previsión solar para estos días: se repite el último día previsto</div>' : ''}`;
+    if (html !== this._navHtml) { this._navHtml = html; this._navEl.innerHTML = html; }
   }
 
   _blockSvg(b, day0, X, Y) {
@@ -273,7 +330,7 @@ class ChargePlanCard extends Base {
     const best = segs.reduce((p, s) => (s.m1 - s.m0 > p.m1 - p.m0 ? s : p), segs[0]);
     for (const s of segs) {
       const x0 = X(s.m0), x1 = X(s.m1), y = Y(s.row) + 3, h = ROW - 6, w = x1 - x0;
-      const fill = b.weekly ? 0.3 : 0.55;
+      const fill = b.shadow ? 0.12 : b.weekly ? 0.3 : 0.55;
       g += `<rect x="${x0}" y="${y}" width="${Math.max(2, w)}" height="${h}" rx="9" fill="${color}" fill-opacity="${b.enabled === false ? 0.15 : fill}" stroke="${b.selected ? '#fff' : color}" stroke-width="${b.selected ? 2.5 : 1.2}" ${b.weekly ? 'stroke-dasharray="5 3"' : ''} class="blk"/>`;
       if (s === best && w > 34) {
         const detail = !m ? '¿Qué hacer?' : b.mode === 'fixed' ? `${num(b.kw)} kW` : b.mode === 'away' ? `−${Math.round(b.pct)} %` : 'Sol';
@@ -328,7 +385,7 @@ class ChargePlanCard extends Base {
     el.hidden = !this._showHelp;
     if (this._showHelp) el.innerHTML = `<div class="helpbox"><b>Dibuja</b> arrastrando sobre un día (puedes seguir hacia el día de abajo); <b>toca</b> una franja para editarla; arrastra su <b>cuerpo</b> para moverla o sus <b>bordes</b> para cambiar la duración.<br>
       <span class="k" style="background:#ab47bc"></span>Fija: potencia constante · <span class="k" style="background:#66bb6a"></span>Sol: el coche se lleva todo el excedente · <span class="k" style="background:#9a9ca1"></span>Fuera: no carga y gasta el % indicado. Rayada con ↻: se repite cada semana.<br>
-      Fondo azul: horas promocionadas · amarillo: sol previsto · línea blanca: batería estimada. En vista previa solo se estima; al ejecutar, el plan lleva el cargador.</div>`;
+      Cambia de semana con ‹ ›; las lejanas usan el último día de sol previsto. Fondo azul: horas promocionadas · amarillo: sol previsto · línea blanca: batería estimada. En vista previa solo se estima; al ejecutar, el plan lleva el cargador.</div>`;
   }
 
   // ------------------------------------------------------------------ panel
@@ -363,7 +420,7 @@ class ChargePlanCard extends Base {
     const el = this.shadowRoot.getElementById('res'), s = this._sel;
     if (!el || !s) return;
     const r = this._resultOf(s);
-    el.textContent = !s.mode ? '' : r ? `${Math.round(r[4])} → ${Math.round(r[5])} %  ·  sol ${num(r[6])} kWh · red ${num(r[7])} kWh · ${num(r[8], 2)} €` : 'Calculando…';
+    el.textContent = !s.mode ? '' : this._covered(s) ? 'Ahora mismo otra franja la tapa: no cuenta en la estimación' : r ? `${Math.round(r[4])} → ${Math.round(r[5])} %  ·  sol ${num(r[6])} kWh · red ${num(r[7])} kWh · ${num(r[8], 2)} €` : 'Calculando…';
   }
 
   _updateRange() { const el = this.shadowRoot.getElementById('range'); if (el && this._sel) el.textContent = `${fmtRange(this._sel.t0, this._sel.t1)}${this._sel.weekdays.length ? ' ↻' : ''}`; }
@@ -436,7 +493,7 @@ class ChargePlanCard extends Base {
     if (!this._w) return;
     const p = this._xy(e), hit = this._hit(p);
     this._svg.setPointerCapture(e.pointerId);
-    this._day0 = this._day0 || dayStart(this._now);
+    this._day0 = this._day0 || weekStart(this._now, this._week);
     const d = { start: p, moved: false, kind: 'create', t: this._timeAt(p), ghost: null };
     if (hit.kind === 'block') {
       if (!(this._sel && hit.block.selected)) this._select(hit.block);
@@ -515,13 +572,16 @@ class ChargePlanCard extends Base {
     if (!el) return;
     const s = this._sel, ds = el.dataset;
     if (ds.entity) { this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId: ds.entity }, bubbles: true, composed: true })); return; }
+    if (ds.act && ds.act.startsWith('wk:')) { const n = Number(ds.act.slice(3)); this._gotoWeek(n === 0 ? 0 : this._week + n); return; }
     if (ds.act === 'toggle') { this._hass.callService('switch', 'toggle', { entity_id: this._config.switch }); return; }
     if (ds.act === 'settings') { this._showSettings = !this._showSettings; this._drawSettings(); return; }
     if (ds.act === 'help') { this._showHelp = !this._showHelp; this._drawHelp(); return; }
     if (ds.act === 'new') {
-      const t = Math.ceil(this._now / 1800) * 1800;
-      this._flush(); this._day0 = dayStart(this._now);
-      this._newDraft(t, t + 7200); this._draw(); return;
+      this._flush();
+      const t = this._week === 0 ? Math.ceil(this._now / 1800) * 1800 : timeAt(weekStart(this._now, this._week), 0, 8 * 60);
+      this._week = Math.max(0, Math.min(this._maxWeek(), this._weekIndex(t)));
+      this._day0 = weekStart(this._now, this._week);
+      this._newDraft(t, t + 7200); this._drawNav(); this._draw(); return;
     }
     if (!s) return;
     if (ds.mode) { s.mode = ds.mode; this._drawPanel(); this._commit(true); }
@@ -566,8 +626,10 @@ ChargePlanCard.css = `
   #help, #settings { margin: 8px 0; } .helpbox { font-size: 13px; line-height: 1.6; background: rgba(154,156,161,.1); padding: 10px 12px; border-radius: 10px; }
   .k { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 4px 0 0; vertical-align: middle; }
   .srow { display: flex; justify-content: space-between; padding: 9px 4px; border-top: 1px solid rgba(154,156,161,.2); cursor: pointer; font-size: 14px; }
+  .nav { display: flex; align-items: center; gap: 6px; margin-top: 10px; } .wk { flex: 1; display: flex; flex-direction: column; align-items: center; line-height: 1.25; } .wk b { font-size: 14px; } .wk span { font-size: 12px; color: var(--secondary-text-color); }
+  .ic:disabled { opacity: .3; cursor: default; } .est { font-size: 12px; color: var(--secondary-text-color); text-align: center; margin-top: 4px; }
   #wrap { margin-top: 8px; } svg { display: block; width: 100%; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
-  text { fill: var(--secondary-text-color); font-size: 11px; } .dow { font-size: 12px; font-weight: 500; } .dow.today { fill: #ffa726; } .dnum { font-size: 11px; opacity: .8; } .tick { font-size: 10px; opacity: .8; }
+  text { fill: var(--secondary-text-color); font-size: 11px; } .dow { font-size: 12px; font-weight: 500; } .dow.today { fill: #ffa726; } .dnum { font-size: 11px; opacity: .8; } .dnum.today { fill: #ffa726; opacity: 1; } .tick { font-size: 10px; opacity: .8; }
   .edge { stroke: rgba(154,156,161,.5); } .hour { stroke: rgba(154,156,161,.2); } .rowline { stroke: rgba(154,156,161,.2); }
   .curve { fill: none; stroke: var(--primary-text-color); stroke-width: 2; stroke-linejoin: round; opacity: .9; pointer-events: none; }
   .now { stroke: #ffa726; stroke-width: 2; } .bt { fill: #fff; font-size: 13px; font-weight: 600; pointer-events: none; } .bs { fill: #fff; font-size: 11px; opacity: .9; pointer-events: none; }

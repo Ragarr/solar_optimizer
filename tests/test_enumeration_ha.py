@@ -414,3 +414,20 @@ async def test_charge_plan_periods_survive_edit_and_removal(hass: HomeAssistant)
     assert p2.id == p.id and p2.pct == 30 and p2.weekdays == (0, 1, 2)
     await hass.services.async_call(DOMAIN, "remove_charge_period", {"id": p.id}, blocking=True)
     assert runtime.plan.periods == []
+
+
+async def test_charge_plan_publishes_covered_occurrences(hass: HomeAssistant):
+    """A one-off period over a weekly one: the weekly occurrence is still published (dimmed in the
+    card, no result) so the repetition stays visible"""
+    world, t0 = await setup(hass, dry_run=False)
+    hass.states.async_set("sensor.deepal_battery", 50)
+    now = t0.timestamp()
+    wd = [(t0 + timedelta(days=i)).weekday() for i in range(7)]
+    await _set_period(hass, id="semanal", mode="fixed", kw=3.0, weekdays=wd, start_time="00:00", end_time="23:59")
+    await _set_period(hass, id="puntual", mode="away", pct=10, start=now - 15 * 3600, end=now + 12 * 3600)  # covers today's whole occurrence
+    await run(hass, world, t0, 120)
+    rows = hass.states.get("sensor.solar_optimizer_plan_coche").attributes["intervalos"]
+    weekly = [r for r in rows if r[0] == "semanal"]
+    assert any(r[4] is None and r[-1] == 1 for r in weekly), weekly  # today's is covered by the one-off
+    assert any(r[4] is not None for r in weekly)  # and the rest of the week still has results
+    assert any(r[0] == "puntual" for r in rows)

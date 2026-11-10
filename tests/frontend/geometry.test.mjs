@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dayStart, timeAt, rowOf, minuteOf, segments, pointToTime, limitCursor, limitShift, limitEdge,
-  shiftWeekdays, toService, fmtDuration, fmtRange, weekdayOf, SNAP,
+  shiftWeekdays, toService, fmtDuration, fmtRange, weekdayOf, weekStart, fmtWeek, SNAP,
 } from '../../custom_components/solar_optimizer/frontend/charge-plan-card.js';
 
 const T = (s) => new Date(s).getTime() / 1000; // local time
@@ -77,4 +77,14 @@ test('labels', () => {
   assert.equal(fmtDuration(26 * 3600), '1 d 2 h');
   assert.equal(fmtRange(T('2026-11-11T22:00:00'), T('2026-11-12T06:00:00')), 'mié 22:00 → jue 06:00 · 8 h');
   assert.equal(fmtRange(T('2026-11-11T10:00:00'), T('2026-11-11T12:30:00')), 'mié 10:00 → 12:30 · 2 h 30 min');
+});
+
+test('calendar weeks start on Monday', () => {
+  const wed = T('2026-11-11T15:20:00');
+  assert.equal(weekStart(wed), T('2026-11-09T00:00:00'));
+  assert.equal(weekStart(wed, 2), T('2026-11-23T00:00:00'));
+  assert.equal(weekStart(T('2026-11-15T23:00:00')), T('2026-11-09T00:00:00')); // Sunday
+  assert.equal(weekStart(T('2026-11-16T00:00:00')), T('2026-11-16T00:00:00')); // Monday
+  assert.equal(fmtWeek(T('2026-11-09T00:00:00')), '9–15 nov');
+  assert.equal(fmtWeek(T('2026-12-28T00:00:00')), '28 dic – 3 ene');
 });

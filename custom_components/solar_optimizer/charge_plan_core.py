@@ -29,7 +29,9 @@ MODES = ("fixed", "sun", "away")
 
 @dataclass(frozen=True)
 class PlanParams:
-    horizon: float = 7 * 86400.0
+    horizon: float = 56 * 86400.0  # 8 weeks
+    detail_days: int = 7  # curve every 30 min this long, then hourly
+    hours_days: int = 10  # hourly sun / tariff published for this many days
     forecast_max_age: float = 6 * HOUR
     sun_learn_min_kwh: float = 0.5  # forecast already elapsed today to correct it with the real sun
     kwh_per_pct_min: float = 0.55
@@ -370,12 +372,18 @@ def simulate(inp: PlanInputs, p: PlanParams | None = None) -> PlanResult:
     last_hour = None
     res.curve.append((inp.now, round(pct, 1)))
     k = max(inp.kwh_per_pct, EPS)
+    pending, cur, pi = intervals, [], 0  # sweep: the intervals ruling at each slot
     for s in slots:
         hour = int(s.t0 // HOUR * HOUR)
-        if hour != last_hour:
+        if hour != last_hour and hour < inp.now + p.hours_days * 86400:
             last_hour = hour
             res.hours.append((hour, round(s.sun, 2), 1 if s.offpeak else 0))
-        iv = active(intervals, (s.t0 + s.t1) / 2)
+        mid = (s.t0 + s.t1) / 2
+        while pi < len(pending) and pending[pi].t0 <= mid:
+            cur.append(pending[pi])
+            pi += 1
+        cur = [i for i in cur if i.t1 > mid]
+        iv = active(cur, mid)
         mode = iv.period.mode if iv else None
         key = (iv.period.id, iv.t0) if iv else None
         if iv and key not in by_key:
@@ -413,7 +421,8 @@ def simulate(inp: PlanInputs, p: PlanParams | None = None) -> PlanResult:
         res.pct_min = min(res.pct_min, pct)
         if iv:
             by_key[key].pct_end = round(pct, 1)
-        if s.t1 - mark >= HALF_HOUR - 1:
+        step = HALF_HOUR if s.t1 - inp.now <= p.detail_days * 86400 else HOUR
+        if s.t1 - mark >= step - 1:
             mark = s.t1
             res.curve.append((s.t1, round(pct, 1)))
     res.results = sorted(by_key.values(), key=lambda r: r.t0)
