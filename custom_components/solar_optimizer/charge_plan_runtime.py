@@ -378,7 +378,7 @@ class ChargePlanRuntime:
         else:
             self.state = "Fuera"
         if self.periods and not self.enabled:
-            self.state = "Vista previa"
+            self.state = "Pausado"
         done = {(r.id, r.t0) for r in res.results}
         # Occurrences ruled out by another period (no result): shown dimmed, last field 1
         covered = [[i.period.id, int(i.t0), int(i.t1), i.period.mode, None, None, 0, 0, 0, 1] for i in self._intervals if (i.period.id, i.t0) not in done]

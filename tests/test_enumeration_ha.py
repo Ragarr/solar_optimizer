@@ -383,7 +383,7 @@ async def test_charge_plan_fixed_period_holds_the_car(hass: HomeAssistant):
     with patch("homeassistant.core.ServiceRegistry.async_call", side_effect=world.service):
         await coordinator.runtime.plan.switch_entity.async_turn_off()
     await run(hass, world, t0 + timedelta(seconds=900), 120)
-    assert hass.states.get("sensor.solar_optimizer_plan_coche").state == "Vista previa"
+    assert hass.states.get("sensor.solar_optimizer_plan_coche").state == "Pausado"
     assert hass.states.get("sensor.solar_optimizer_status_coche").state == "auto"
 
 
