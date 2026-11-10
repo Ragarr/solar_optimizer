@@ -75,6 +75,7 @@ async def async_setup_entry(
                 PlanValueSensor(coordinator, "planned_import", "mdi:transmission-tower-import"),
                 PlanValueSensor(coordinator, "planned_export", "mdi:transmission-tower-export"),
                 ViolationsSensor(coordinator),
+                ChargePlanSensor(coordinator),
             ]
         async_add_entities(entities, False)
 
@@ -574,6 +575,45 @@ class ViolationsSensor(CoordinatorEntity, RestoreSensor):
             "last_violations": data.get("last_violations"),
             "supervisor": self.coordinator.runtime.global_state(),
         }
+        self.async_write_ha_state()
+
+
+class ChargePlanSensor(SensorEntity):
+    """Charge plan of the car by periods: state = what the plan does now (no periods, preview,
+    fixed, sun, away, optimiser, paused); attributes = periods, estimated battery curve and the
+    result of each period (read by the charge-plan-card)."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:car-clock"
+    _attr_should_poll = False
+    _unrecorded_attributes = frozenset({"periodos", "intervalos", "curva", "niveles_kw"})
+
+    def __init__(self, coordinator):
+        self._plan = coordinator.runtime.plan
+        self.entity_id = "sensor.solar_optimizer_plan_coche"
+        self._attr_unique_id = "solar_optimizer_plan_coche"
+        self._attr_translation_key = "charge_plan"
+        self._attr_name = "Plan del coche"
+        self._attr_native_value = self._plan.state
+        self._unsub = None
+
+    @property
+    def device_info(self):
+        return _central_device_info()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._unsub = self._plan.add_listener(self._update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub is not None:
+            self._unsub()
+            self._unsub = None
+
+    @callback
+    def _update(self) -> None:
+        self._attr_native_value = self._plan.state
+        self._attr_extra_state_attributes = self._plan.attrs
         self.async_write_ha_state()
 
 

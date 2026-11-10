@@ -359,3 +359,58 @@ async def test_offline_device_status(hass: HomeAssistant):
     hass.states.async_set(ACS[1], "unavailable")
     await run(hass, world, t0, 60)
     assert hass.states.get("sensor.solar_optimizer_status_aire_2").state == "offline"
+
+
+async def _set_period(hass, **data):
+    await hass.services.async_call(DOMAIN, "set_charge_period", data, blocking=True)
+    await hass.async_block_till_done()
+
+
+async def test_charge_plan_fixed_period_holds_the_car(hass: HomeAssistant):
+    """A fixed period active now: the car is held ("plan") and charged within the guards; with the
+    plan switched off it is only a preview and the car is the optimiser's"""
+    world, t0 = await setup(hass, restore=[State("switch.solar_optimizer_plan_coche", "on")], dry_run=False)
+    hass.states.async_set("sensor.deepal_battery", 50)
+    hass.states.async_set("sensor.cargador_ev_estado", "plugged_in")
+    await _set_period(hass, mode="fixed", kw=3.0, start=t0.timestamp() - 600, end=t0.timestamp() + 3 * 3600)
+    await run(hass, world, t0, 900)
+    plan = hass.states.get("sensor.solar_optimizer_plan_coche")
+    assert plan.state.startswith("Fija"), plan
+    assert hass.states.get("sensor.solar_optimizer_status_coche").state == "plan"
+    assert plan.attributes["periodos"][0]["mode"] == "fixed" and plan.attributes["curva"]
+    assert hass.states.get("sensor.solar_optimizer_violations").state == "0"
+    coordinator = SolarOptimizerCoordinator.get_coordinator()
+    with patch("homeassistant.core.ServiceRegistry.async_call", side_effect=world.service):
+        await coordinator.runtime.plan.switch_entity.async_turn_off()
+    await run(hass, world, t0 + timedelta(seconds=900), 120)
+    assert hass.states.get("sensor.solar_optimizer_plan_coche").state == "Vista previa"
+    assert hass.states.get("sensor.solar_optimizer_status_coche").state == "auto"
+
+
+async def test_charge_plan_sun_period_gives_the_surplus_to_the_car(hass: HomeAssistant):
+    """In a sun period the car's group takes the whole share; outside it the alphas are the user's"""
+    world, t0 = await setup(hass, restore=[State("switch.solar_optimizer_plan_coche", "on")], dry_run=False)
+    hass.states.async_set("sensor.cargador_ev_estado", "plugged_in")
+    runtime = SolarOptimizerCoordinator.get_coordinator().runtime
+    before = runtime._plan_alphas()
+    await _set_period(hass, mode="sun", start=t0.timestamp() - 600, end=t0.timestamp() + 3600)
+    await run(hass, world, t0, 120)
+    group = runtime.plan.car().group
+    alphas = runtime._plan_alphas()
+    assert alphas[group] == 1.0 and all(v == 0.0 for g, v in alphas.items() if g != group)
+    assert hass.states.get("sensor.solar_optimizer_plan_coche").state == "Sol"
+    await run(hass, world, t0 + timedelta(seconds=3700), 120)
+    assert runtime._plan_alphas() == before
+
+
+async def test_charge_plan_periods_survive_edit_and_removal(hass: HomeAssistant):
+    world, t0 = await setup(hass, dry_run=False)
+    await _set_period(hass, mode="away", pct=20, weekdays=[0, 1, 2], start_time="08:00", end_time="18:00")
+    runtime = SolarOptimizerCoordinator.get_coordinator().runtime
+    (p,) = runtime.plan.periods
+    assert p.weekly and p.weekdays == (0, 1, 2) and p.end_min == 18 * 60
+    await _set_period(hass, id=p.id, mode="away", pct=30)
+    (p2,) = runtime.plan.periods
+    assert p2.id == p.id and p2.pct == 30 and p2.weekdays == (0, 1, 2)
+    await hass.services.async_call(DOMAIN, "remove_charge_period", {"id": p.id}, blocking=True)
+    assert runtime.plan.periods == []

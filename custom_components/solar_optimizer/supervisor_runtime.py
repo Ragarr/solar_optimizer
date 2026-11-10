@@ -42,6 +42,7 @@ from .const import (
     EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
     NOTIFICATION_ACTION_END_MANUAL,
 )
+from .charge_plan_runtime import ChargePlanRuntime
 from .controller_core import Controller, ControllerParams, DeviceConfig, DeviceInput, Inputs, Output
 from .power_estimator import Step
 from .supervisor_core import LEVEL, OFF, ON, GlobalParams
@@ -111,6 +112,7 @@ class SupervisorRuntime:
         self.foreign_user_ids: set[str] = set()
         self._decision_key = None
         self._decision_logged_at = 0.0
+        self.plan = ChargePlanRuntime(hass, self, (hass.data.get(DOMAIN) or {}).get("charge_plan"))
 
     # ------------------------------------------------------------------ setup
 
@@ -125,8 +127,10 @@ class SupervisorRuntime:
             self._unsubs.append(async_track_state_change_event(self.hass, [entity], self._on_grid_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE, self._on_manual_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_MOBILE_APP_NOTIFICATION_ACTION, self._on_notification_action))
+        self.plan.start()
 
     def unload(self) -> None:
+        self.plan.stop()
         for unsub in self._unsubs:
             unsub()
         self._unsubs = []
@@ -206,6 +210,14 @@ class SupervisorRuntime:
             out[group] = float(value) if value is not None else (1.0 if group == 1 else 0.0)
         return out
 
+    def _plan_alphas(self) -> dict[int, float]:
+        """The shares of the surplus; in a "sun" period of the plan the car's group takes all of it"""
+        alphas = self.alphas()
+        group = self.plan.sun_group()
+        if group is None:
+            return alphas
+        return {g: (1.0 if g == group else 0.0) for g in alphas}
+
     def day_key(self, now: datetime) -> str:
         raz = self.coordinator.raz_time
         shifted = now - timedelta(hours=raz.hour, minutes=raz.minute) if raz else now
@@ -231,6 +243,7 @@ class SupervisorRuntime:
                 level=None if level is None else level / 1000,
                 measured=None if measured is None else measured / 1000,
                 force_level=None if force is None else force / 1000,
+                held_level=self.plan.held_level(d.name),
                 self_acting=bool(getattr(d, "device_acts_on_its_own", False)),
                 value=d.value(offpeak),
             )
@@ -242,7 +255,7 @@ class SupervisorRuntime:
             price_export=None if sell is None else sell * (1 - tax / 100),
             offpeak=offpeak,
             limit=self._limit_kw(),
-            alphas=self.alphas(),
+            alphas=self._plan_alphas(),
             caps=parse_caps(self.config.get(CONF_GROUP_IMPORT_CAPS)),
             devices=devices,
             day=self.day_key(now),
@@ -252,6 +265,7 @@ class SupervisorRuntime:
 
     async def async_step(self, now: datetime) -> dict:
         """One control cycle; returns the data published by the sensors"""
+        await self.plan.async_step(now)
         async with self._lock:
             inputs = self.build_inputs(now)
             controller = self._get_controller(inputs.now)

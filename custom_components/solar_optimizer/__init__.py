@@ -40,6 +40,7 @@ from .const import (
     CONF_MIN_ON_TIME_PER_DAY_MIN,
 )
 from .coordinator import SolarOptimizerCoordinator
+from .charge_plan_runtime import async_register_services as async_register_plan_services
 
 # from .input_boolean import async_setup_entry as async_setup_entry_input_boolean
 
@@ -49,6 +50,7 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
+                vol.Optional("charge_plan"): dict,
                 vol.Optional("algorithm"): vol.Schema(
                     {
                         vol.Required("initial_temp", default=1000): vol.Coerce(float),
@@ -153,6 +155,7 @@ async def async_setup(
 
     # L'argument config contient votre fichier configuration.yaml
     solar_optimizer_config = config.get(DOMAIN)
+    hass.data[DOMAIN]["charge_plan"] = (solar_optimizer_config or {}).get("charge_plan") or {}
 
     hass.data[DOMAIN]["coordinator"] = coordinator = SolarOptimizerCoordinator(
         hass, solar_optimizer_config
@@ -215,6 +218,12 @@ async def async_setup(
         coordinator.runtime.back_to_auto(device, "service")
 
     hass.services.async_register(DOMAIN, SERVICE_END_MANUAL, _handle_end_manual)
+
+    def _plan_runtime():
+        coordinator = SolarOptimizerCoordinator.get_coordinator()
+        return coordinator.runtime.plan if coordinator is not None else None
+
+    async_register_plan_services(hass, _plan_runtime)
 
     await async_setup_reload_service(hass, DOMAIN, PLATFORMS)
 
