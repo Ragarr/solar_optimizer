@@ -364,8 +364,7 @@ class ChargePlanCard extends Base {
     const soc = a.soc_estimado, fin = a.soc_final;
     const warn = (a.avisos || []).map((w) => `<div class="warn">⚠ ${w}</div>`).join('');
     const html = `<div class="head"><div class="pct">${soc == null ? '—' : Math.round(soc)} % <span class="arrow">→</span> ${fin == null ? '—' : Math.round(fin)} %</div>
-      <div class="state">${st ? st.state : 'sin datos'}</div>
-      <button class="pill ${on ? 'on' : ''}" data-act="toggle">${on ? '▶ Ejecuta' : '◌ Vista previa'}</button>
+      <button class="run ${on ? 'on' : ''}" data-act="toggle" title="${on ? 'Pulsa para pausar el plan' : 'Pulsa para ejecutar el plan'}"><span class="ico">${on ? '▶' : '⏸'}</span><span class="lab"><b>${on ? 'Ejecutando' : 'Pausado'}</b><small>${on ? (st ? st.state : '') : 'Solo estima, no toca el cargador'}</small></span></button>
       <button class="ic" data-act="settings" title="Ajustes">⚙</button><button class="ic" data-act="help" title="Ayuda">?</button></div>${warn}`;
     if (html !== this._headHtml) { this._headHtml = html; this._headEl.innerHTML = html; }
   }
@@ -385,7 +384,7 @@ class ChargePlanCard extends Base {
     el.hidden = !this._showHelp;
     if (this._showHelp) el.innerHTML = `<div class="helpbox"><b>Dibuja</b> arrastrando sobre un día (puedes seguir hacia el día de abajo); <b>toca</b> una franja para editarla; arrastra su <b>cuerpo</b> para moverla o sus <b>bordes</b> para cambiar la duración.<br>
       <span class="k" style="background:#ab47bc"></span>Fija: potencia constante · <span class="k" style="background:#66bb6a"></span>Sol: el coche se lleva todo el excedente · <span class="k" style="background:#9a9ca1"></span>Fuera: no carga y gasta el % indicado. Rayada con ↻: se repite cada semana.<br>
-      Cambia de semana con ‹ ›; las lejanas usan el último día de sol previsto. Fondo azul: horas promocionadas · amarillo: sol previsto · línea blanca: batería estimada. En vista previa solo se estima; al ejecutar, el plan lleva el cargador.</div>`;
+      Cambia de semana con ‹ ›; las lejanas usan el último día de sol previsto. Fondo azul: horas promocionadas · amarillo: sol previsto · línea blanca: batería estimada. En pausa solo se estima; ejecutando, el plan lleva el cargador.</div>`;
   }
 
   // ------------------------------------------------------------------ panel
@@ -619,8 +618,10 @@ ChargePlanCard.css = `
   .head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .pct { font-size: 24px; font-weight: 600; flex: 1; min-width: 120px; } .arrow { color: var(--secondary-text-color); }
   .state { color: var(--secondary-text-color); font-size: 13px; }
-  .pill { padding: 6px 12px; border-radius: 16px; background: rgba(154,156,161,.2); font-size: 13px; }
-  .pill.on { background: rgba(102,187,106,.25); color: #66bb6a; }
+  .run { display: flex; align-items: center; gap: 8px; padding: 6px 14px 6px 10px; border-radius: 22px; background: rgba(255,167,38,.16); text-align: left; }
+  .run .ico { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #ffa726; color: #1b1b1b; font-size: 13px; }
+  .run .lab { display: flex; flex-direction: column; line-height: 1.25; } .run b { font-size: 14px; } .run small { font-size: 11px; color: var(--secondary-text-color); }
+  .run.on { background: rgba(102,187,106,.2); } .run.on .ico { background: #66bb6a; }
   .ic { width: 32px; height: 32px; border-radius: 50%; background: rgba(154,156,161,.15); font-size: 16px; }
   .warn { color: #ffa726; font-size: 13px; margin-top: 4px; }
   #help, #settings { margin: 8px 0; } .helpbox { font-size: 13px; line-height: 1.6; background: rgba(154,156,161,.1); padding: 10px 12px; border-radius: 10px; }

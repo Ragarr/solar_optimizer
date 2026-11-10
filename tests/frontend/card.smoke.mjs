@@ -16,7 +16,7 @@ const T = (s) => new Date(s).getTime() / 1000;
 const now = T('2026-11-11T15:20:00');
 const calls = [];
 const attrs = { ahora: now, periodos: [], intervalos: [], curva: [], horas: [], niveles_kw: [1.4, 2.2, 3.5, 7], soc_estimado: 50, soc_final: 60, avisos: [] };
-const hass = () => ({ states: { 'sensor.solar_optimizer_plan_coche': { state: 'Vista previa', attributes: attrs }, 'switch.solar_optimizer_plan_coche': { state: 'off' } }, callService: (d, s, data) => calls.push([d, s, data]) });
+const hass = () => ({ states: { 'sensor.solar_optimizer_plan_coche': { state: 'Pausado', attributes: attrs }, 'switch.solar_optimizer_plan_coche': { state: 'off' } }, callService: (d, s, data) => calls.push([d, s, data]) });
 const card = document.createElement('charge-plan-card');
 card.setConfig({});
 card.hass = hass();
