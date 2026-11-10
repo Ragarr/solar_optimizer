@@ -379,11 +379,15 @@ class ChargePlanRuntime:
             self.state = "Fuera"
         if self.periods and not self.enabled:
             self.state = "Vista previa"
+        done = {(r.id, r.t0) for r in res.results}
+        # Occurrences ruled out by another period (no result): shown dimmed, last field 1
+        covered = [[i.period.id, int(i.t0), int(i.t1), i.period.mode, None, None, 0, 0, 0, 1] for i in self._intervals if (i.period.id, i.t0) not in done]
         self.attrs = {
             "ejecutando": self.enabled,
             "periodos": [p.to_dict() for p in self.periods],
-            "intervalos": [[r.id, int(r.t0), int(r.t1), r.mode, r.pct_start, r.pct_end, round(r.sun_kwh, 2), round(r.grid_kwh, 2), round(r.cost, 2)] for r in res.results],
+            "intervalos": [[r.id, int(r.t0), int(r.t1), r.mode, r.pct_start, r.pct_end, round(r.sun_kwh, 2), round(r.grid_kwh, 2), round(r.cost, 2)] for r in res.results] + covered,
             "curva": [[int(t), v] for t, v in res.curve],
+            "horas": [list(h) for h in res.hours],
             "ahora": int(inputs.now),
             "soc_estimado": None if self.soc_now is None else round(self.soc_now, 1),
             "soc_final": res.pct_end,
@@ -394,6 +398,8 @@ class ChargePlanRuntime:
             "niveles_kw": list(inputs.levels_kw),
             "kwh_por_pct": round(inputs.kwh_per_pct, 3),
             "avisos": warnings,
+            "horizonte_dias": int(self.params.horizon // 86400),
+            "prevision_hasta": int(max(inputs.forecast) + 3600) if inputs.forecast and inputs.forecast_time is not None and inputs.now - inputs.forecast_time <= self.params.forecast_max_age else None,
         }
         if self.sun_ratio is not None:
             self.attrs["sol_real_frente_a_previsto"] = round(self.sun_ratio, 2)
