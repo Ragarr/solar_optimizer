@@ -42,7 +42,6 @@ from .const import (
     EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE,
     NOTIFICATION_ACTION_END_MANUAL,
 )
-from .charge_planner_runtime import ChargePlannerRuntime
 from .controller_core import Controller, ControllerParams, DeviceConfig, DeviceInput, Inputs, Output
 from .power_estimator import Step
 from .supervisor_core import LEVEL, OFF, ON, GlobalParams
@@ -112,7 +111,6 @@ class SupervisorRuntime:
         self.foreign_user_ids: set[str] = set()
         self._decision_key = None
         self._decision_logged_at = 0.0
-        self.planner =ChargePlannerRuntime(hass, self, (hass.data.get(DOMAIN) or {}).get("charge_planner"))
 
     # ------------------------------------------------------------------ setup
 
@@ -127,10 +125,8 @@ class SupervisorRuntime:
             self._unsubs.append(async_track_state_change_event(self.hass, [entity], self._on_grid_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_TYPE_SOLAR_OPTIMIZER_MANUAL_CHANGE, self._on_manual_change))
         self._unsubs.append(self.hass.bus.async_listen(EVENT_MOBILE_APP_NOTIFICATION_ACTION, self._on_notification_action))
-        self.planner.start()
 
     def unload(self) -> None:
-        self.planner.stop()
         for unsub in self._unsubs:
             unsub()
         self._unsubs = []
@@ -235,7 +231,6 @@ class SupervisorRuntime:
                 level=None if level is None else level / 1000,
                 measured=None if measured is None else measured / 1000,
                 force_level=None if force is None else force / 1000,
-                held_level=self.planner.held_level(d.name),
                 self_acting=bool(getattr(d, "device_acts_on_its_own", False)),
                 value=d.value(offpeak),
             )
@@ -257,8 +252,6 @@ class SupervisorRuntime:
 
     async def async_step(self, now: datetime) -> dict:
         """One control cycle; returns the data published by the sensors"""
-        if self.planner.started:
-            await self.planner.async_maybe_run(now)
         async with self._lock:
             inputs = self.build_inputs(now)
             controller = self._get_controller(inputs.now)

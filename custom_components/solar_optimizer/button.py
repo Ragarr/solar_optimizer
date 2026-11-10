@@ -18,8 +18,6 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     """One "back to automatic" button per managed device with manual detection"""
     if entry.data.get(CONF_DEVICE_TYPE) == CONF_DEVICE_CENTRAL:
-        if entry.data.get(CONF_ALGORITHM) == ALGORITHM_ENUMERATION:
-            async_add_entities([ChargePlanSkipButton(SolarOptimizerCoordinator.get_coordinator())])
         return
     if entry.data.get(CONF_DEVICE_TYPE) is None:
         return
@@ -58,29 +56,3 @@ class ManagedDeviceEndManualButton(ButtonEntity):
     async def async_press(self) -> None:
         # Also clears a faulty mark or a "not absorbing" pause of the supervisor
         self._coordinator.runtime.back_to_auto(self._device, "button")
-
-
-class ChargePlanSkipButton(ButtonEntity):
-    """Skip the next target of the charge planner"""
-
-    def __init__(self, coordinator: SolarOptimizerCoordinator):
-        self._coordinator = coordinator
-        self._attr_has_entity_name = True
-        self.entity_id = f"{BUTTON_DOMAIN}.solar_optimizer_plan_carga_omitir"
-        self._attr_unique_id = "solar_optimizer_plan_carga_omitir"
-        self._attr_name = "Omitir el próximo objetivo"
-        self._attr_translation_key = "charge_plan_skip"
-        self._attr_icon = "mdi:skip-next"
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        return DeviceInfo(
-            entry_type=DeviceEntryType.SERVICE,
-            identifiers={(DOMAIN, CONF_DEVICE_CENTRAL)},
-            name="Solar Optimizer",
-            manufacturer=DEVICE_MANUFACTURER,
-            model=INTEGRATION_MODEL,
-        )
-
-    async def async_press(self) -> None:
-        await self._coordinator.runtime.planner.skip_next()
