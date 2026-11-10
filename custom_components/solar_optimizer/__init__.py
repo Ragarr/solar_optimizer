@@ -49,7 +49,6 @@ CONFIG_SCHEMA = vol.Schema(
     {
         DOMAIN: vol.Schema(
             {
-                vol.Optional("charge_planner"): dict,
                 vol.Optional("algorithm"): vol.Schema(
                     {
                         vol.Required("initial_temp", default=1000): vol.Coerce(float),
@@ -154,7 +153,6 @@ async def async_setup(
 
     # L'argument config contient votre fichier configuration.yaml
     solar_optimizer_config = config.get(DOMAIN)
-    hass.data[DOMAIN]["charge_planner"] = (solar_optimizer_config or {}).get("charge_planner") or {}
 
     hass.data[DOMAIN]["coordinator"] = coordinator = SolarOptimizerCoordinator(
         hass, solar_optimizer_config
