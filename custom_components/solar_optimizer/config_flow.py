@@ -327,11 +327,20 @@ class SolarOptimizerOptionsFlow(SolarOptimizerBaseConfigFlow, OptionsFlow):
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialisation de l'option flow. On a le ConfigEntry existant en entrée"""
         super().__init__(config_entry.data.copy())
+        # Value of 1 kWh shown in the form: the one in use (panel, peak), not the stored one
+        self._shown_value: float | None = None
         _LOGGER.debug(
             "CTOR SolarOptimizerOptionsFlow info: %s, entry_id: %s",
             self._infos,
             config_entry.entry_id,
         )
+
+    def _value_in_use(self) -> float | None:
+        """Peak value of the panel number of this device (what the optimiser uses)"""
+        if not self._coordinator or CONF_NAME not in self._infos:
+            return None
+        device = self._coordinator.get_device_by_unique_id(name_to_unique_id(self._infos[CONF_NAME]))
+        return None if device is None else device.value(False)
 
     async def async_step_init(self, user_input=None):
         """Manage options."""
@@ -339,6 +348,11 @@ class SolarOptimizerOptionsFlow(SolarOptimizerBaseConfigFlow, OptionsFlow):
             "Into OptionsFlowHandler.async_step_init user_input =%s",
             user_input,
         )
+
+        if user_input is None and self._infos.get(CONF_DEVICE_TYPE) in (CONF_DEVICE, CONF_POWERED_DEVICE):
+            self._shown_value = self._value_in_use()
+            if self._shown_value is not None:
+                self._infos[CONF_VALUE] = self._shown_value
 
         if self._infos.get(CONF_DEVICE_TYPE) == CONF_DEVICE_CENTRAL:
             return await self.async_step_device_central(user_input)
@@ -354,6 +368,17 @@ class SolarOptimizerOptionsFlow(SolarOptimizerBaseConfigFlow, OptionsFlow):
             self._infos,
         )
         await super().async_step_finalize(user_input)
+
+        # A value changed here must win over the one the panel numbers restore after the reload
+        new_value = self._infos.get(CONF_VALUE)
+        if (
+            self._infos.get(CONF_DEVICE_TYPE) in (CONF_DEVICE, CONF_POWERED_DEVICE)
+            and new_value is not None
+            and (self._shown_value is None or float(new_value) != float(self._shown_value))
+        ):
+            overrides = self.hass.data.setdefault(VALUE_OVERRIDES, {})
+            for period in ("peak", "offpeak"):
+                overrides[(name_to_unique_id(self._infos[CONF_NAME]), period)] = float(new_value)
 
         self.hass.config_entries.async_update_entry(self.config_entry, data=self._infos)
         return self.async_create_entry(title=None, data=None)
