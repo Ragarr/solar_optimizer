@@ -108,6 +108,9 @@ CONF_GROUP_COUNT = "group_count"
 CONF_GROUP_IMPORT_CAPS = "group_import_caps"
 CONF_GROUP = "group"
 CONF_VALUE = "value"
+# hass.data key: values changed in the options flow, applied by the panel numbers after the reload
+# ((device unique id, "peak"/"offpeak") -> €/kWh)
+VALUE_OVERRIDES = "solar_optimizer_value_overrides"
 CONF_MEASURED_POWER_ENTITY_ID = "measured_power_entity_id"
 CONF_CONFIRM_ON_MIN = "confirm_on_min"
 CONF_CONFIRM_OFF_MIN = "confirm_off_min"

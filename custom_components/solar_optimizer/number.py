@@ -70,6 +70,11 @@ class DeviceValueNumber(RestoreNumber):
         last = await self.async_get_last_number_data()
         if last is not None and last.native_value is not None:
             self._attr_native_value = last.native_value
+        # Value just changed in the device configuration: it wins over the restored one
+        override = self.hass.data.get(VALUE_OVERRIDES, {}).pop((name_to_unique_id(self._device.name), self._period), None)
+        if override is not None:
+            _LOGGER.info("%s - value %s set from the configuration: %s", self._device.name, self._period, override)
+            self._attr_native_value = override
         self._device.set_value_entity(self._period, self)
 
     async def async_set_native_value(self, value: float) -> None:
