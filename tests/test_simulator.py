@@ -14,3 +14,6 @@ def test_simulated_day_has_no_violation(profile):
     # guards keep the switching reasonable (minimal times, starts per hour)
     assert result["switches"]["car"] <= 3 * 18
     assert all(n <= 2 * 18 for d, n in result["switches"].items() if d != "car")
+    if profile.name == "pulsing_house":
+        # a pulsing house load (13-11-2026) lowers the car, never sheds it off
+        assert result["car_shed_offs"] == 0

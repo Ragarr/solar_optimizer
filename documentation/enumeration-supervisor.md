@@ -71,6 +71,7 @@ and starts per hour, 4. confirmations, 5. the plan.
 | Period | `refresh_period_sec` | 30 s |
 | Smoothing window | `smoothing_window_sec` | 120 s |
 | Contracted power, margin | `contracted_power_entity_id`, `contracted_power_margin_percent` | —, 10 % |
+| Load shedding: import average, hard limit | `shed_average_window_min`, `shed_hard_limit_kw` | 30 min, 6.5 kW |
 | Off-peak period | `offpeak_entity_id` | — |
 | Separation between two starts | `start_separation_sec` | 60 s |
 | Warm-up after a restart | `warmup_sec` | 120 s |
@@ -79,11 +80,21 @@ and starts per hour, 4. confirmations, 5. the plan.
 | Groups, import caps | `group_count`, `group_import_caps` (`2:0.5`) | 2, none |
 | Users of another controller | `foreign_user_ids` | — |
 
-**Load shedding** (fast path on every new measure of the net consumption): when the import exceeds
-the limit, the modulable device goes to its minimal level, then it stops, then the other devices
-stop from the lowest to the highest value, waiting the reaction time between steps. The minimal
-off time still applies; manual and excluded devices are never touched; a notification is sent if
-nothing is left.
+**Load shedding** (fast path on every new measure of the net consumption). The grid operator only
+trips on a sustained excess, so a single peak over the limit is not shed:
+
+- *On the average*: when the moving average of the import over `shed_average_window_min` exceeds
+  the limit (with at least 5 min of history), and while the import of the last smoothing window is
+  still over it, the modulable device goes down to the highest level that brings that import under
+  the limit (0.1 kW below), step after step, then it stops, then the other devices stop from the
+  lowest to the highest value; 60 s between two steps.
+- *Hard limit*: when the instantaneous import exceeds `shed_hard_limit_kw`, the modulable device
+  goes to its minimal level at once, then it stops, then the others, waiting the reaction time
+  (`shed_reaction_sec`) between steps.
+
+A shed device keeps a ceiling (its level, or stopped) until the overload ends: neither the plan nor
+the charge plan raise it before. The minimal off time still applies; manual and excluded devices
+are never touched; a notification is sent if nothing is left.
 
 **Invariants**, checked before every command (a command that would break one is not sent, it is
 counted in `sensor.solar_optimizer_violations` and notified):
@@ -92,7 +103,7 @@ counted in `sensor.solar_optimizer_violations` and notified):
 - I2 between a start and the next stop: at least `T_on` (except load shedding);
 - I3 starts in any 60 min window ≤ `max_starts_per_hour`;
 - I4 level changes separated by the level interval (except shedding decreases);
-- I5 the import goes back under the limit within the reaction time (checked over time);
+- I5 while the overload lasts, the shedding acts on a device still on every reaction time (checked over time);
 - I6 two starts of any devices separated by `start_separation_sec`.
 
 **Robustness**: sensors unavailable or frozen (unchanged 5 min with sun) → hold; for more than

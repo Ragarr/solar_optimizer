@@ -16,6 +16,8 @@ from .world import DAY, BaseLoad, Profile, SimAC, SimCar, Weather, clear_sky, pr
 
 PEAK, OFFPEAK, SELL = 0.26371, 0.1349, 0.06
 LIMIT = 4.6 * 0.9
+HARD_LIMIT = 6.5
+AVG_WINDOW, AVG_MIN_HISTORY, RECENT_WINDOW = 1800, 300, 120
 SENSOR_PERIOD, CYCLE = 10, 30
 CAR = "car"
 ACS = ("salon_comedor", "salon_tv", "habitacion_enar", "habitacion_raul")
@@ -77,6 +79,8 @@ class Checker:
     shed_times: list = field(default_factory=list)
     violations: list = field(default_factory=list)
     over_since: float | None = None
+    window: list = field(default_factory=list)  # import of the last AVG_WINDOW seconds
+    total: float = 0.0
 
     def transition(self, name, t, on):
         (self.true_on if on else self.true_off).setdefault(name, []).append(t)
@@ -110,9 +114,17 @@ class Checker:
             self.shed_times.append(t)
 
     def overload(self, t, imported, controllable_on):
-        """I5: during an overload, while a controllable device is on and not yet shed, a shedding
-        action every reaction time (30 s max) + sensor period + grace"""
-        if imported <= LIMIT:
+        """I5: during an overload (instantaneous import over the hard limit, or its 30 min moving
+        average and its 2 min average over the limit), while a controllable device is on, a
+        shedding action every reaction time (30 s hard, 60 s on the average) + sensor period + grace"""
+        self.window.append(imported)
+        self.total += imported
+        if len(self.window) > AVG_WINDOW:
+            self.total -= self.window.pop(0)
+        recent = sum(self.window[-RECENT_WINDOW:]) / min(len(self.window), RECENT_WINDOW)
+        avg = self.total / len(self.window) if len(self.window) >= AVG_MIN_HISTORY else None
+        hard = imported > HARD_LIMIT
+        if not hard and not (avg is not None and avg > LIMIT and recent > LIMIT):
             self.over_since = None
             return
         if self.over_since is None:
@@ -120,7 +132,7 @@ class Checker:
         if not controllable_on:
             return
         ref = max([self.over_since] + [x for x in self.shed_times if x >= self.over_since])
-        if t - ref > 30 + SENSOR_PERIOD + 10:
+        if t - ref > (30 if hard else 60) + 2 * SENSOR_PERIOD + 10:
             self.violations.append(("I5", "grid", t))
             self.over_since = t  # one per window
 
@@ -130,7 +142,7 @@ class Checker:
 
 def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 23.5 * 3600, hysteresis: float = 0.0) -> dict:
     rnd = random.Random(seed)
-    weather, base = Weather(profile, rnd), BaseLoad(rnd)
+    weather, base = Weather(profile, rnd), BaseLoad(rnd, profile.appliances)
     car = SimCar(rnd)
     acs = {n: SimAC(rnd) for n in ACS}
     ctrl = cc.Controller(device_configs(), cparams=cc.ControllerParams(hysteresis=hysteresis))
@@ -150,6 +162,7 @@ def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 
     }
     switches = {n: 0 for n in (CAR,) + ACS}
     shed_commands = 0
+    car_shed_offs = 0
     commands = 0
     modes: dict[str, int] = {}
 
@@ -170,7 +183,7 @@ def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 
                 dev.on = on
                 manual_until[name] = t + MANUAL_HOURS
         pv = clear_sky(t, profile.peak_kw) * weather.factor(t)
-        house = base.power(t)
+        house = base.power(t) + profile.pulse_kw(t)
         dev_power = {CAR: car.power(), **{n: ac.power() for n, ac in acs.items()}}
         net = house + sum(dev_power.values()) - pv
         true_on = {CAR: car.on, **{n: ac.on for n, ac in acs.items()}}
@@ -228,7 +241,7 @@ def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 
             alphas=alphas,
             day=str(int(t // DAY)),
             devices={
-                CAR: cc.DeviceInput(manual=manual_until.get(CAR, 0) > t, on=car.on, level=car.level, measured=car.power()),
+                CAR: cc.DeviceInput(manual=manual_until.get(CAR, 0) > t, on=car.on, level=car.level, measured=car.power(), held_level=profile.held_car_kw(t)),
                 **{n: cc.DeviceInput(manual=manual_until.get(n, 0) > t, on=acs[n].reported(t)) for n in ACS},
             },
         )
@@ -237,6 +250,7 @@ def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 
         for cmd in out.commands:
             commands += 1
             shed_commands += cmd.shed
+            car_shed_offs += cmd.shed and cmd.device == CAR and cmd.kind == "off"
             checker.command(cmd, t, car.level if cmd.device == CAR else 0)
             dev = car if cmd.device == CAR else acs[cmd.device]
             dev.command(t, cmd.kind, cmd.value)
@@ -252,6 +266,7 @@ def simulate(profile: Profile, seed: int, start: float = 5 * 3600, end: float = 
         "switches": switches,
         "commands": commands,
         "shed_commands": shed_commands,
+        "car_shed_offs": car_shed_offs,
         "modes": modes,
         "cost_eur": round(stats["cost"], 3),
         "ideal_cost_eur": round(stats["ideal_cost"], 3),
