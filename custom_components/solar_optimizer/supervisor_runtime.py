@@ -30,12 +30,16 @@ from .const import (
     CONF_NOTIFY_SERVICE,
     CONF_OFFPEAK_ENTITY_ID,
     CONF_SMOOTHING_WINDOW_SEC,
+    CONF_SHED_AVERAGE_WINDOW_MIN,
+    CONF_SHED_HARD_LIMIT_KW,
     CONF_START_SEPARATION_SEC,
     CONF_WARMUP_SEC,
     DEFAULT_CONTRACTED_POWER_MARGIN,
     DEFAULT_DISCARD_AFTER_COMMAND_SEC,
     DEFAULT_GROUP_COUNT,
     DEFAULT_SMOOTHING_WINDOW_SEC,
+    DEFAULT_SHED_AVERAGE_WINDOW_MIN,
+    DEFAULT_SHED_HARD_LIMIT_KW,
     DEFAULT_START_SEPARATION_SEC,
     DEFAULT_WARMUP_SEC,
     EVENT_MOBILE_APP_NOTIFICATION_ACTION,
@@ -166,6 +170,8 @@ class SupervisorRuntime:
             start_separation=float(self.config.get(CONF_START_SEPARATION_SEC) or DEFAULT_START_SEPARATION_SEC),
             warmup=float(self.config.get(CONF_WARMUP_SEC, DEFAULT_WARMUP_SEC) or 0),
             period=float(self.coordinator.update_interval.total_seconds()) if self.coordinator.update_interval else 30.0,
+            shed_avg_window=60 * float(self.config.get(CONF_SHED_AVERAGE_WINDOW_MIN) or DEFAULT_SHED_AVERAGE_WINDOW_MIN),
+            shed_hard_limit=float(self.config.get(CONF_SHED_HARD_LIMIT_KW) or DEFAULT_SHED_HARD_LIMIT_KW),
         )
         window = self.config.get(CONF_SMOOTHING_WINDOW_SEC)
         cparams = ControllerParams(
@@ -178,6 +184,8 @@ class SupervisorRuntime:
         if previous is not None:
             controller.restore_state(previous, now, real_on)
             controller.g = self.controller.g
+            # The import history of the load shedding survives a change of configuration
+            controller.carry_import(self.controller)
         else:
             saved = {"devices": dict(self._restore_devices), "global": self._restore_global or {}}
             controller.restore_state(saved, now, real_on)

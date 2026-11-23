@@ -18,7 +18,8 @@ and turns the plan into commands:
     switch off if the plan asks OFF during the "off" confirmation and can_stop
     change the level (modulable devices) if the level interval has passed since the last change
 
-Rules, by priority: 1. contracted power (load shedding, can break anything except rule 2);
+Rules, by priority: 1. contracted power (load shedding, can break anything except rule 2: on the
+30 min moving average of the import, or at once over the hard limit of the instantaneous import);
 2. minimal off time (no exception); 3. minimal on time and starts per hour; 4. confirmations;
 5. the plan.
 
@@ -29,8 +30,8 @@ violation is counted and notified):
     I3  starts of i in any 60 min window <= N_max
     I4  level changes separated by the level interval (except shedding decreases)
     I6  two starts of any consumers separated by the start separation
-I5 (the import goes back below the limit within the reaction time) is checked over time by
-``Supervisor.check_overload``.
+I5 (while the overload lasts, every reaction time the shedding acts on a consumer still on) is
+checked over time by ``Supervisor.check_overload``.
 """
 
 from __future__ import annotations
@@ -85,6 +86,14 @@ class GlobalParams:
     plan_stale_periods: int = 3
     period: float = 30.0
     shed_notify_every: float = 900.0
+    # Load shedding. The grid operator only trips on a sustained excess, so the normal shedding
+    # acts on the moving average of the import; a hard limit on the instantaneous import keeps a
+    # fast cut for large peaks.
+    shed_hard_limit: float = 6.5  # kW, instantaneous import: fast shedding above it
+    shed_avg_window: float = 1800.0  # moving average of the import compared with the limit
+    shed_avg_min_history: float = 300.0  # no shedding on the average with less history than this
+    shed_slow_reaction: float = 60.0  # wait between two steps of the shedding on the average
+    shed_slow_margin: float = 0.1  # kW below the limit aimed at by a proportional decrease
 
 
 @dataclass
@@ -140,7 +149,10 @@ class GlobalState:
     sensors_bad_since: float | None = None
     last_plan: float | None = None
     shed_wait_until: float = 0.0
-    shed_done: list[str] = field(default_factory=list)  # devices shed during the current overload
+    # Ceiling (kW, 0 = stopped) of each device shed during the current overload: the plan cannot
+    # raise it above that until the overload ends
+    shed_caps: dict[str, float] = field(default_factory=dict)
+    shed_mode: str | None = None  # "hard" (instantaneous peak) | "avg" (moving average) | None
     over_since: float | None = None
     shed_notified: float | None = None
     violations: int = 0
@@ -366,51 +378,113 @@ class Supervisor:
 
     # ------------------------------------------------------------------ load shedding
 
+    def overload_mode(self, imported: float, avg: float | None, limit: float) -> str | None:
+        """"hard" when the instantaneous import exceeds the hard limit, "avg" when its moving
+        average exceeds the limit, None otherwise"""
+        if imported > self.p.shed_hard_limit + EPS:
+            return "hard"
+        if avg is not None and avg > limit + EPS:
+            return "avg"
+        return None
+
     def shed(
-        self, devices: list[tuple[str, DeviceState, DeviceParams, float]], g: GlobalState, imported: float, limit: float, now: float, car: str | None = None
+        self,
+        devices: list[tuple[str, DeviceState, DeviceParams, float]],
+        g: GlobalState,
+        imported: float,
+        avg: float | None,
+        recent: float | None,
+        limit: float,
+        now: float,
+        car: str | None = None,
     ) -> tuple[Command | None, str | None]:
-        """Fast path when the import exceeds the limit. ``devices``: (name, state, params, value)
-        of the AUTO, included consumers. Steps: car to its minimal level, stop the car, stop the
-        other consumers from the lowest to the highest value. Waits the reaction time of the last
-        action before the next one. Returns (command, notification)."""
-        if imported <= limit + EPS:
+        """Load shedding, on every new grid measure. ``devices``: (name, state, params, value) of
+        the AUTO, included consumers; ``imported`` the instantaneous import, ``avg`` its moving
+        average (None without enough history) and ``recent`` its short average.
+
+        - hard (instantaneous import over the hard limit): car to its minimal level, stop the car,
+          stop the other consumers from the lowest to the highest value, waiting the reaction time
+          of each action before the next one;
+        - avg (moving average over the limit): only while the recent import is still over the
+          limit (otherwise the average is already going down), the car goes down to the highest
+          level that brings the recent import under the limit, step after step, then it stops,
+          then the others stop; ``shed_slow_reaction`` between two steps.
+
+        Each shed device keeps a ceiling until the overload ends. Returns (command, notification)."""
+        mode = self.overload_mode(imported, avg, limit)
+        if mode is None:
             g.over_since = None
-            g.shed_done = []
+            g.shed_caps = {}
+            g.shed_mode = None
             return None, None
         if g.over_since is None:
             g.over_since = now
+        g.shed_mode = mode
         if now < g.shed_wait_until:
             return None, None
+        hard = mode == "hard"
+        if not hard and (recent is None or recent <= limit + EPS):
+            return None, None
+        reason = "deslastre: pico de importación" if hard else "deslastre: media de importación"
         modulable = [d for d in devices if d[2].modulable and d[1].on]
         if car is not None:
             modulable.sort(key=lambda d: d[0] != car)
         for name, dev, p, _ in modulable:
-            if dev.level > p.min_level + EPS and f"{name}:level" not in g.shed_done:
-                g.shed_done.append(f"{name}:level")
-                g.shed_wait_until = now + p.shed_reaction
-                return Command(name, LEVEL, p.min_level, "deslastre: potencia contratada", shed=True), None
+            cap = g.shed_caps.get(name)
+            if dev.level <= p.min_level + EPS or (cap is not None and cap < dev.level - EPS):
+                continue  # at its minimum, or already commanded down (the verification follows it)
+            if hard:
+                target, wait = p.min_level, p.shed_reaction
+            else:
+                aim = dev.level - (recent - limit) - self.p.shed_slow_margin
+                lower = [x for x in p.levels if p.min_level - EPS <= x < dev.level - EPS]
+                fit = [x for x in lower if x <= aim + EPS]
+                target, wait = (max(fit) if fit else p.min_level), self.p.shed_slow_reaction
+            g.shed_caps[name] = target
+            g.shed_wait_until = now + wait
+            return Command(name, LEVEL, target, reason, shed=True), None
         ordered = sorted(devices, key=lambda d: (not d[2].modulable, d[0] != car, d[3]))
         for name, dev, p, _ in ordered:
-            if dev.on and f"{name}:off" not in g.shed_done:
-                g.shed_done.append(f"{name}:off")
-                g.shed_wait_until = now + p.shed_reaction
-                return Command(name, OFF, 0.0, "deslastre: potencia contratada", shed=True), None
+            cap = g.shed_caps.get(name)
+            if dev.on and (cap is None or cap > EPS):
+                g.shed_caps[name] = 0.0
+                g.shed_wait_until = now + (p.shed_reaction if hard else self.p.shed_slow_reaction)
+                return Command(name, OFF, 0.0, reason, shed=True), None
         if g.shed_notified is None or now - g.shed_notified >= self.p.shed_notify_every:
             g.shed_notified = now
-            return None, f"importación {imported:.2f} kW por encima del límite {limit:.2f} kW y no queda nada que deslastrar"
+            if hard:
+                return None, f"importación {imported:.2f} kW por encima del corte rápido {self.p.shed_hard_limit:.2f} kW y no queda nada que deslastrar"
+            minutes = self.p.shed_avg_window / 60
+            return None, f"importación media ({minutes:.0f} min) {avg:.2f} kW por encima del límite {limit:.2f} kW y no queda nada que deslastrar"
         return None, None
 
     def check_overload(
-        self, devices: list[tuple[str, DeviceState, DeviceParams, float]], g: GlobalState, imported: float, limit: float, now: float, grace: float = 5.0
+        self,
+        devices: list[tuple[str, DeviceState, DeviceParams, float]],
+        g: GlobalState,
+        imported: float,
+        avg: float | None,
+        recent: float | None,
+        limit: float,
+        now: float,
+        grace: float = 5.0,
     ) -> Violation | None:
-        """I5: the import is still over the limit after the reaction time of the last shedding
-        action while a consumer that could be shed is still ON and untouched (the shedding did not
-        act). A consumer that ignores its command is handled by the verification (faulty)."""
-        if imported <= limit + EPS or g.over_since is None:
+        """I5: the overload that calls for shedding (instantaneous import over the hard limit, or
+        average and recent import over the limit) is still there after the reaction time of the
+        last shedding action while a consumer that could be shed is still ON and not stopped (the
+        shedding did not act). A consumer that ignores its command is handled by the verification."""
+        if g.over_since is None:
+            return None
+        mode = self.overload_mode(imported, avg, limit)
+        if mode is None or (mode == "avg" and (recent is None or recent <= limit + EPS)):
             return None
         if now <= max(g.shed_wait_until, g.over_since) + grace:
             return None
-        late = [name for name, dev, _, _ in devices if dev.on and f"{name}:off" not in g.shed_done]
+        late = [name for name, dev, _, _ in devices if dev.on and (g.shed_caps.get(name) is None or g.shed_caps[name] > EPS)]
         if late:
-            return Violation(late[0], "I5", f"importación {imported:.2f} kW > {limit:.2f} kW durante {now - g.over_since:.0f} s sin deslastrar", now)
+            if mode == "hard":
+                what = f"importación {imported:.2f} kW > {self.p.shed_hard_limit:.2f} kW"
+            else:
+                what = f"importación media {avg:.2f} kW > {limit:.2f} kW"
+            return Violation(late[0], "I5", f"{what} durante {now - g.over_since:.0f} s sin deslastrar", now)
         return None

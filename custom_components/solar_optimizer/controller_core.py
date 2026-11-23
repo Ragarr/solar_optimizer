@@ -119,6 +119,12 @@ class Controller:
         self.states: dict[str, DeviceState] = {d.name: DeviceState() for d in devices}
         self.g = GlobalState()
         self.filter = TimeWindowAverage(self.cp.smoothing_window)
+        # Grid import for the load shedding: its moving average (what the grid operator looks at)
+        # and the recent net consumption (whether what was shed is already enough). Not persisted:
+        # after a restart the shedding on the average waits for shed_avg_min_history of samples.
+        self.import_avg = TimeWindowAverage(self.sup.p.shed_avg_window)
+        self.net_recent = TimeWindowAverage(self.cp.smoothing_window)
+        self._import_since: float | None = None
         self._last_values: dict[str, tuple[float, float]] = {}
         self._ctrl_set: tuple[str, ...] | None = None
         self._day: str | None = None
@@ -299,22 +305,63 @@ class Controller:
         out = Output()
         self.observe(inp, out)
         self.add_sample(inp)
+        self.add_import(inp)
         if inp.net is None:
             return out
         self._shed(inp, out, dry_run)
         return out
 
+    def add_import(self, inp: Inputs) -> None:
+        """Add the grid measure to the import averages of the load shedding (every measure, also
+        right after a command: what is imported counts all the same)"""
+        if inp.net is None:
+            return
+        if self._import_since is None:
+            self._import_since = inp.now
+        self.import_avg.add(inp.now, max(0.0, inp.net))
+        self.net_recent.add(inp.now, inp.net)
+
+    def carry_import(self, other: "Controller") -> None:
+        """Keep the import history of the previous controller (rebuilt after a change of
+        configuration), unless the windows changed"""
+        if other.import_avg.window_sec == self.import_avg.window_sec and other.net_recent.window_sec == self.net_recent.window_sec:
+            self.import_avg, self.net_recent, self._import_since = other.import_avg, other.net_recent, other._import_since
+
+    def import_average(self, now: float) -> float | None:
+        """Moving average of the import, None with less than shed_avg_min_history of samples"""
+        if self._import_since is None or now - self._import_since < self.sup.p.shed_avg_min_history:
+            return None
+        return self.import_avg.mean(now)
+
+    def _recent_net(self, inp: Inputs) -> float | None:
+        recent = self.net_recent.mean(inp.now)
+        return inp.net if recent is None else recent
+
+    def _capped(self, name: str, levels: tuple[float, ...]) -> tuple[float, ...]:
+        """The admissible levels under the ceiling left by the load shedding, while it lasts"""
+        cap = self.g.shed_caps.get(name)
+        if cap is None or not levels:
+            return levels
+        capped = tuple(x for x in levels if x <= cap + EPS)
+        return capped or (min(levels),)
+
     def _shed(self, inp: Inputs, out: Output, dry_run: bool) -> None:
         imported = max(0.0, inp.net)
+        avg = self.import_average(inp.now)
+        recent_net = self._recent_net(inp)
+        recent = None if recent_net is None else max(0.0, recent_net)
         devices = self._shed_list(inp)
         if not dry_run:
-            v = self.sup.check_overload(devices, self.g, imported, inp.limit, inp.now)
+            v = self.sup.check_overload(devices, self.g, imported, avg, recent, inp.limit, inp.now)
             if v is not None:
                 self._violation(v, out)
-        cmd, msg = self.sup.shed(devices, self.g, imported, inp.limit, inp.now, self._car())
+        cmd, msg = self.sup.shed(devices, self.g, imported, avg, recent, inp.limit, inp.now, self._car())
         if msg:
             out.notifications.append(("shed", msg))
         if cmd is not None:
+            # The next step judges only what is imported after this one (the short average would
+            # otherwise still carry the import before it, and shed one step too many)
+            self.net_recent.reset()
             self._emit(cmd, inp, out, dry_run)
 
     # ------------------------------------------------------------------ cycle
@@ -332,6 +379,7 @@ class Controller:
 
         self.observe(inp, out)
         e_inst = self.add_sample(inp)
+        self.add_import(inp)
         out.surplus_inst = e_inst
         self._estimate(now, out)
 
@@ -388,7 +436,7 @@ class Controller:
                 continue
             st = self.states[name]
             available = di.available and st.not_absorbing_until is None
-            levels = self.sup.allowed_levels(st, cfg.params, self.g, now, available)
+            levels = self._capped(name, self.sup.allowed_levels(st, cfg.params, self.g, now, available))
             if di.force_level is not None:
                 forced = tuple(x for x in levels if abs(x - di.force_level) < 1e-3)
                 if forced:
@@ -423,8 +471,10 @@ class Controller:
         return out
 
     def _drive_held(self, inp: Inputs, out: Output, dry_run: bool, warm: bool) -> dict[str, float]:
-        """The consumers held by the charge planner: its level, within what the guards allow and
-        what fits under the contracted limit now (the house as measured, the device apart)"""
+        """The consumers held by the charge planner: its level, within what the guards (and the
+        ceiling of a load shedding) allow and what fits under the contracted limit (the house as
+        measured over the smoothing window, so a pulsing load does not move it every cycle, the
+        device apart)"""
         held = {}
         for name, cfg in self.devices.items():
             di = inp.devices.get(name)
@@ -432,8 +482,9 @@ class Controller:
                 continue
             st = self.states[name]
             available = di.available and st.not_absorbing_until is None
-            levels = self.sup.allowed_levels(st, cfg.params, self.g, inp.now, available)
-            room = inp.limit - (inp.net - self._y(name, di)) if inp.net is not None else 0.0
+            levels = self._capped(name, self.sup.allowed_levels(st, cfg.params, self.g, inp.now, available))
+            net = self._recent_net(inp)
+            room = inp.limit - (net - self._y(name, di)) if net is not None else 0.0
             fit = [x for x in levels if x <= min(di.held_level, room) + EPS]
             planned = max(fit) if fit else min(levels)
             held[name] = planned

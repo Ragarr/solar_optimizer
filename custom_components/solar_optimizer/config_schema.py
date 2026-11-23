@@ -74,6 +74,12 @@ central_config_schema = vol.Schema(
         vol.Optional(CONF_CONTRACTED_POWER_MARGIN, default=DEFAULT_CONTRACTED_POWER_MARGIN): selector.NumberSelector(
             selector.NumberSelectorConfig(min=0, max=50, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.BOX)
         ),
+        vol.Optional(CONF_SHED_AVERAGE_WINDOW_MIN, default=DEFAULT_SHED_AVERAGE_WINDOW_MIN): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=1, max=120, step=1, unit_of_measurement="min", mode=selector.NumberSelectorMode.BOX)
+        ),
+        vol.Optional(CONF_SHED_HARD_LIMIT_KW, default=DEFAULT_SHED_HARD_LIMIT_KW): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=0.5, max=50, step=0.1, unit_of_measurement="kW", mode=selector.NumberSelectorMode.BOX)
+        ),
         vol.Optional(CONF_OFFPEAK_ENTITY_ID): selector.EntitySelector(
             selector.EntitySelectorConfig(domain=[BINARY_SENSOR_DOMAIN, INPUT_BOOLEAN_DOMAIN])
         ),

@@ -264,12 +264,12 @@ async def test_acts_with_the_guards_and_never_violates(hass: HomeAssistant):
 
 
 async def test_load_shedding_fast_path(hass: HomeAssistant):
-    """Import over the contracted power: the car goes to 6 A at once, then stops"""
+    """Instantaneous import over the hard limit (6.5 kW): the car goes to 6 A at once, then stops"""
     world, t0 = await setup(hass, dry_run=False)
     world.pv = 5.0
     await run(hass, world, t0, 600)
     assert hass.states.get(CAR_SWITCH).state == "on"
-    world.pv, world.base = 0.0, 3.0  # clouds + oven: 3 kW + car > 4.14 kW
+    world.pv, world.base = 0.0, 5.5  # clouds + oven: 5.5 kW + car > 6.5 kW, and still over at 6 A
     calls_before = len(world.device_calls())
     await run(hass, world, t0 + timedelta(seconds=600), 30)
     new = world.device_calls()[calls_before:]

@@ -188,8 +188,9 @@ def test_full_days_never_violate():
 
 
 def test_load_shedding_sequence():
-    """Over the limit: car to 6 A, then car off, then the ACs from the lowest value; waits the
-    reaction time between steps; never touches manual devices; notifies when nothing is left"""
+    """Instantaneous import over the hard limit (6.5 kW): car to 6 A, then car off, then the ACs
+    from the lowest value; waits the reaction time between steps; never touches manual devices;
+    notifies when nothing is left"""
     ctrl = controller()
     house = House(ctrl, base=0.4, pv=0.0)
     house.on.update(car=True, ac1=True, ac2=True)
@@ -197,7 +198,7 @@ def test_load_shedding_sequence():
     for name in ("car", "ac1", "ac2"):
         ctrl.states[name] = DeviceState(on=True, level=house.power(name), t_on=T0 - 60)
     house.inputs_extra["ac1"] = {"manual": True}
-    house.base = 3.5  # 3.5 + 3.712 + 0.8 + 0.8 > 4.14, and still 3.5 + 0.8 (ac1, manual) after shedding
+    house.base = 5.8  # 5.8 + 3.712 + 0.8 + 0.8 > 6.5, and still 5.8 + 0.8 (ac1, manual) after shedding
     out = ctrl.fast(house.inputs(T0))
     assert [(c.kind, c.value) for c in out.commands] == [("level", pytest.approx(1.392))]
     house.apply(out, T0)
@@ -218,10 +219,109 @@ def test_load_shedding_sequence():
 def test_i5_detected_when_shedding_does_not_act():
     sup = Supervisor(GlobalParams())
     g = GlobalState(over_since=T0, shed_wait_until=T0)
-    dev = DeviceState(on=True, level=0.8)
-    assert sup.check_overload([("ac", dev, AC, 0.08)], g, 5.0, 4.14, T0 + 4) is None
-    v = sup.check_overload([("ac", dev, AC, 0.08)], g, 5.0, 4.14, T0 + 6)
+    devs = [("ac", DeviceState(on=True, level=0.8), AC, 0.08)]
+    # hard: instantaneous import over 6.5 kW
+    assert sup.check_overload(devs, g, 7.0, None, None, 4.14, T0 + 4) is None
+    v = sup.check_overload(devs, g, 7.0, None, None, 4.14, T0 + 6)
     assert v is not None and v.code == "I5"
+    # average: only while the recent import is over the limit too
+    v = sup.check_overload(devs, g, 4.5, 4.5, 4.5, 4.14, T0 + 6)
+    assert v is not None and v.code == "I5"
+    assert sup.check_overload(devs, g, 4.5, 4.5, 4.0, 4.14, T0 + 6) is None
+    # a single peak over the limit (no hard limit, average under it) is no overload
+    assert sup.check_overload(devs, g, 5.0, 3.5, 5.0, 4.14, T0 + 6) is None
+    assert sup.check_overload(devs, g, 5.0, None, 5.0, 4.14, T0 + 6) is None
+
+
+def _car_on(ctrl, house, amps):
+    house.on["car"] = True
+    house.car_level = round(amps * 0.232, 3)
+    ctrl.states["car"] = DeviceState(on=True, level=house.car_level, t_on=T0 - 3600)
+
+
+def test_pulsing_house_is_not_shed():
+    """13-11-2026: the house pulses +-0.9 kW every reading and every other reading is over the
+    limit, but the 30 min average is under it: no shedding at all"""
+    ctrl = controller()
+    house = House(ctrl)
+    _car_on(ctrl, house, 13)  # 3.016 kW: import 3.1 / 4.9 kW, mean 4.0
+    for i, t in enumerate(range(int(T0), int(T0 + 1800), 10)):
+        house.base = 0.1 if i % 2 else 1.9
+        out = ctrl.fast(house.inputs(float(t)))
+        assert out.commands == [], (t - T0, out.commands)
+    assert ctrl.g.violations == 0
+
+
+def test_sustained_excess_shed_proportionally():
+    """The average over the limit: after the minimum history (5 min) the car goes down to the
+    highest level that brings the import under the limit, in one step, without stopping; the
+    ceiling holds the charge plan until the average is back under the limit"""
+    ctrl = controller()
+    house = House(ctrl, base=2.0)
+    _car_on(ctrl, house, 16)  # 2.0 + 3.712 = 5.7 kW
+    t = T0
+    while t < T0 + 1800:
+        out = ctrl.fast(house.inputs(t))
+        house.apply(out, t)
+        t += 10
+    shed = house.commands("car")
+    assert [(tc - T0, c.kind, c.value) for tc, c in shed] == [(300, "level", pytest.approx(1.856))]  # 8 A
+    assert all(c.shed for _, c in shed)
+    assert ctrl.g.violations == 0
+    # still over on the average: the charge plan (Fixed at 16 A) cannot raise the car, even with sun
+    assert ctrl.import_average(t) > 4.14
+    house.pv = 1.0
+    house.inputs_extra["car"] = {"held_level": 3.712}
+    out = ctrl.step(house.inputs(t))
+    assert not [c for c in out.commands if c.device == "car" and c.kind == "level" and c.value > 1.856 + 1e-6]
+    # once the average is back under the limit the ceiling is gone
+    while ctrl.import_average(t) > 4.14:
+        t += 10
+        house.apply(ctrl.fast(house.inputs(t)), t)
+    ctrl.fast(house.inputs(t + 10))
+    assert ctrl.g.shed_caps == {}
+
+
+def test_sustained_excess_stops_the_car_at_its_minimum():
+    """At 6 A and still over the limit: the car stops (then the ACs), one step every minute"""
+    ctrl = controller()
+    house = House(ctrl, base=3.5)
+    _car_on(ctrl, house, 6)  # 3.5 + 1.392 = 4.9 kW
+    t = T0
+    while t < T0 + 600:
+        house.apply(ctrl.fast(house.inputs(t)), t)
+        t += 10
+    assert [(tc - T0, c.kind) for tc, c in house.commands("car")] == [(300, "off")]
+    assert ctrl.g.violations == 0
+
+
+def test_manual_load_over_the_limit_is_only_notified():
+    """Manual mandates: a car in manual over the limit is never shed; the owner is notified
+    every 15 min"""
+    ctrl = controller()
+    house = House(ctrl, base=2.0)
+    _car_on(ctrl, house, 16)
+    house.inputs_extra["car"] = {"manual": True}
+    notes = []
+    for t in range(int(T0), int(T0 + 1300), 10):
+        out = ctrl.fast(house.inputs(float(t)))
+        assert out.commands == []
+        notes += [(t - T0, m) for k, m in out.notifications if k == "shed"]
+    assert [n[0] for n in notes] == [300, 1200]
+    assert "media" in notes[0][1]
+
+
+def test_hard_limit_acts_without_history():
+    """Just after a restart the average has no history: no shedding on it, but the hard limit acts
+    at once"""
+    ctrl = controller()
+    house = House(ctrl, base=2.0)
+    _car_on(ctrl, house, 16)  # 5.7 kW: over the limit, under the hard limit
+    for t in range(int(T0), int(T0 + 290), 10):
+        assert ctrl.fast(house.inputs(float(t))).commands == []
+    house.base = 3.0  # 6.7 kW
+    out = ctrl.fast(house.inputs(T0 + 290))
+    assert [(c.kind, c.value, c.shed) for c in out.commands] == [("level", pytest.approx(1.392), True)]
 
 
 # ---------------------------------------------------------------------- verification and robustness

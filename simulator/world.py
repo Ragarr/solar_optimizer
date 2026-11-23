@@ -28,6 +28,21 @@ class Profile:
     alpha_car: float = 1.0
     manual: list[tuple[float, str, bool]] = field(default_factory=list)  # (time, device, on)
     full_car_at: float | None = None  # the car stops absorbing (battery full)
+    appliances: bool = True  # random appliances in the base consumption
+    # a house load pulsing +-amplitude every period around a mean (start, end, mean kW, amplitude kW, period s)
+    pulse: tuple[float, float, float, float, float] | None = None
+    held_car: tuple[float, float, float] | None = None  # charge plan "Fixed" (start, end, kW)
+
+    def pulse_kw(self, t: float) -> float:
+        if self.pulse is None or not self.pulse[0] <= t < self.pulse[1]:
+            return 0.0
+        _, _, mean, amplitude, period = self.pulse
+        return mean + (amplitude if int(t // period) % 2 == 0 else -amplitude)
+
+    def held_car_kw(self, t: float) -> float | None:
+        if self.held_car is None or not self.held_car[0] <= t < self.held_car[1]:
+            return None
+        return self.held_car[2]
 
 
 def profiles() -> list[Profile]:
@@ -38,6 +53,15 @@ def profiles() -> list[Profile]:
         Profile("sensor_drop", "walk", sensor_gap=(13 * 3600, 13 * 3600 + 20 * 60), sensor_frozen=(15 * 3600, 15 * 3600 + 15 * 60)),
         Profile("shared_alpha", "walk", alpha_car=0.6),
         Profile("manual_and_full_car", "square", period=300, manual=[(11 * 3600, "salon_comedor", True), (16 * 3600, "car", False)], full_car_at=14.5 * 3600),
+        # 13-11-2026: a pulsing house load (oven, hob) +-1 kW every 10 s around 2 kW, at night, with
+        # the charge plan holding the car at 16 A: the car must go down, never be shed off
+        Profile(
+            "pulsing_house",
+            "clear",
+            appliances=False,
+            pulse=(19.5 * 3600, 21.5 * 3600, 1.65, 1.0, 10.0),
+            held_car=(19.5 * 3600, 21.5 * 3600, round(16 * SimCar.W_PER_A, 3)),
+        ),
     ]
     return out
 
@@ -145,11 +169,11 @@ class SimAC:
 class BaseLoad:
     """Base consumption with random appliances (kettle, oven, washing machine)"""
 
-    def __init__(self, rnd):
+    def __init__(self, rnd, appliances: bool = True):
         self.rnd = rnd
         self.events: list[tuple[float, float, float]] = []
         t = 6 * 3600
-        while t < 23 * 3600:
+        while appliances and t < 23 * 3600:
             t += rnd.expovariate(1 / 3600)
             kw, dur = rnd.choice(((2.0, 180), (1.8, 2400), (2.2, 1800), (1.2, 600)))
             self.events.append((t, t + dur, kw))
